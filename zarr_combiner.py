@@ -32,7 +32,7 @@ LEG_PATH = os.path.join(EK80_ROOT, LEG)
 # Where to save the converted data:
 ECHODATA_ZARR_DIRECTORY = os.path.join(LEG_PATH, './echodata_zarr/')
 # Where to save the combined data:
-ECHODATA_ZARR_COMBINED_PATH = os.path.join(LEG_PATH, './echodata_combined.zarr')
+ECHODATA_ZARR_COMBINED_PATH = os.path.join(LEG_PATH, './echodata_combined_zarr')
 
 
 def convert(client):
