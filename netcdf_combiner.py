@@ -9,7 +9,6 @@ import os.path
 import warnings
 
 import echopype as ep
-from dask.distributed import Client
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 # Ignore large graph dask UserWarnings
