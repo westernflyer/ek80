@@ -19,19 +19,21 @@ EK80_ROOT = "/home/tkeffer/WesternFlyerData/Echosounder_EK80Portable/"
 LEG = "./Leg 3/"
 LEG_PATH = os.path.join(EK80_ROOT, LEG)
 # Where to find the converted data:
-ECHODATA_NETCDF_DIRECTORY = os.path.join(LEG_PATH, './echodata_nc/')
+ECHODATA_NETCDF_DIRECTORY = os.path.abspath(os.path.join(LEG_PATH, './echodata_nc/'))
 # Where to save the combined data:
-ECHODATA_NETCDF_COMBINED_PATH = os.path.join(LEG_PATH, './echodata_combined_nc')
+ECHODATA_NETCDF_COMBINED_PATH = os.path.abspath(os.path.join(LEG_PATH, './echodata_combined.nc'))
 
 
 def combine():
     nc_paths = sorted(glob.glob(os.path.join(ECHODATA_NETCDF_DIRECTORY, "*.nc")))
+    print(f"Found {len(nc_paths)} netCDF files in {ECHODATA_NETCDF_DIRECTORY}")
     nc_files = []
     for nc_path in nc_paths:
         print(f"Loading {nc_path}")
         nc_files.append(ep.open_converted(nc_path))
     ed_combined = ep.combine_echodata(nc_files)
 
+    print(f"Saving combined data to {ECHODATA_NETCDF_COMBINED_PATH}")
     # Save the combined EchoData object to a new netCDF store
     result = ed_combined.to_netcdf(
         ECHODATA_NETCDF_COMBINED_PATH,

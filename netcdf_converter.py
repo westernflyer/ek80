@@ -26,7 +26,7 @@ EK80_ROOT = "/home/tkeffer/WesternFlyerData/Echosounder_EK80Portable/"
 LEG = "./Leg 3/"
 LEG_PATH = os.path.join(EK80_ROOT, LEG)
 # Where to save the converted data:
-ECHODATA_NETCDF_DIRECTORY = os.path.join(LEG_PATH, './echodata_nc/')
+ECHODATA_NETCDF_DIRECTORY = os.path.abspath(os.path.join(LEG_PATH, './echodata_nc/'))
 
 
 def convert():
@@ -39,6 +39,7 @@ def convert():
 
     # Gather up a list of all the raw files in the specified directory
     raw_files = glob.glob(os.path.join(LEG_PATH, '*.raw'))
+    print(f"Found {len(raw_files)} raw files in {LEG_PATH}")
     # Parse EK80 `.raw` file and save to netCDF format
     open_and_save_futures = []
     for raw_file in raw_files:
