@@ -11,45 +11,19 @@ The main features include:
 Module requires Echopype and Dask for its operations.
 """
 import argparse
-import glob
 import os
 import os.path
 import warnings
-from typing import Iterable, List
+from typing import Iterable
 
 import echopype as ep
 from dask.distributed import Client
 
+from utilities import find_raw_files
+
 warnings.simplefilter("ignore", category=DeprecationWarning)
 # Ignore large graph dask UserWarnings
 warnings.simplefilter("ignore", category=UserWarning)
-
-
-def find_raw_files(inputs: Iterable[str]) -> List[str]:
-    """
-    Find and return a list of raw files from the given input paths. This function processes the
-    provided paths, expanding user home directories and environment variables, resolving glob
-    patterns, and checking for valid file paths. It logs a warning for non-file or
-    non-existent paths.
-
-    Parameters:
-        inputs (Iterable[str]): An iterable of input paths or glob patterns to search for raw
-        files.
-
-    Returns:
-        List[str]: A sorted list of validated file paths.
-    """
-    seen = set()
-    for inp in inputs:
-        # Expand user home and env vars
-        inp = os.path.expanduser(os.path.expandvars(inp))
-        # Expand glob patterns, then scan for valid files
-        for c in glob.glob(inp):
-            if os.path.isfile(c):
-                seen.add(c)
-            else:
-                print(f"Warning: {c} is not a file or does not exist. Ignored")
-    return sorted(list(seen))
 
 
 def convert(inputs: Iterable[str],
@@ -133,7 +107,7 @@ def parse_args():
     parser.add_argument(
         "inputs",
         nargs="+",
-        help="Input .raw files or glob patterns (directories are ignored)",
+        help="Input .raw files or glob patterns",
     )
     parser.add_argument(
         "-o",
