@@ -1,5 +1,45 @@
 """
-Calculate Sv from EK80 processed zarr files.
+A module to calculate Sv from EK80 zarr datasets using Echopype and Dask.
+
+This module provides functionality to process zarr datasets, calculate calibrated
+volume backscatter (Sv), and save the resultant datasets back to disk. The calculation
+is distributed using Dask to improve efficiency. The module supports configurable
+calibration parameters such as encoding mode, waveform mode, and depth offset.
+
+Functions
+---------
+calc_all(inputs, save_dir, encode_mode, depth_offset, waveform_mode)
+    Find the zarr directories to be processed, distribute tasks to Dask, and calculate Sv.
+
+calculate_sv(zarr_dir, save_path, waveform_mode, encode_mode, depth_offset)
+    Calibrates backscatter measurements to Sv and saves the result to a zarr directory.
+
+parse_args()
+    Parses command-line arguments for module execution.
+
+Usage
+---------
+usage: zarr_to_sv.py [-h] [-o SAVE_DIR] [--encode-mode {complex,power}]
+                     [--depth-offset DEPTH_OFFSET]
+                     [--waveform-mode {CW,BB}]
+                     inputs [inputs ...]
+
+Calculate Sv from EK80 zarr datasets using Echopype and Dask.
+
+positional arguments:
+  inputs                Input zarr directories or glob patterns
+
+options:
+  -h, --help            show this help message and exit
+  -o SAVE_DIR, --out SAVE_DIR
+                        Output directory to store Sv zarr files (default: ./sv_zarr under CWD)
+  --encode-mode {complex,power}
+                        Encoding mode of EK80 data for calibration (default: complex)
+  --depth-offset DEPTH_OFFSET
+                        Depth offset (meters) added when computing depth (default: 1.0)
+  --waveform-mode {CW,BB}
+                        Waveform mode for calibration (default: CW)
+
 """
 import argparse
 import os
