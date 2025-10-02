@@ -80,7 +80,7 @@ mvbs_parts = []
 for file_path in Sv_zarr_path_list:
 
     # Open ds_Sv from disk Zarr
-    print(f"Reading Sv file {file_path}")
+    print(f"Calculating MVBS from Sv file {file_path}")
     ds_Sv = xr.open_zarr(file_path)
 
     # Concat leftover Sv with current Sv
