@@ -33,13 +33,19 @@ parser.add_argument(
     help="One or more .zarr directories or glob patterns to read. "
          "If omitted, defaults to ./Sv_zarr/*.zarr under the current directory.",
 )
+parser.add_argument(
+    "--ping-bin",
+    dest="ping_bin",
+    default="5s",
+    help="Ping time bin size for MVBS computation. Default: 5s",
+)
+parser.add_argument(
+    "--range-bin",
+    dest="range_bin",
+    default="0.5m",
+    help="Range bin size for MVBS computation. Default: 0.5m",
+)
 args = parser.parse_args()
-
-# echodata_zarr_path = data_path / "echodata_zarr"
-# Sv_zarr_path = data_path / "Sv_zarr"
-# Sv_zarr_path.mkdir(exist_ok=True)
-# MVBS_zarr_path = data_path / "MVBS_zarr"
-# MVBS_zarr_path.mkdir(exist_ok=True)
 
 if args.zarr_inputs:
     zarr_input_dirs = args.zarr_inputs
@@ -59,6 +65,8 @@ if not Sv_zarr_path_list:
     raise SystemExit("No .zarr inputs found from provided patterns.")
 
 print(f"Found {len(Sv_zarr_path_list)} Sv zarr directories")
+print(f"Subsampling into ping bins of size {args.ping_bin}, "
+      f"and range bins of size {args.range_bin}")
 
 Sv_zarr_path_list.sort()
 
@@ -81,8 +89,8 @@ for file_path in Sv_zarr_path_list:
     else:
         concat_ds_Sv = ds_Sv
 
-    # Create a Resample object for subsampling into 5-second bins
-    resampled_data = concat_ds_Sv.resample(ping_time="5s", skipna=True)
+    # Create a Resample object for subsampling into user-specified ping bins
+    resampled_data = concat_ds_Sv.resample(ping_time=args.ping_bin, skipna=True)
 
     # Determine the start index of the last incomplete bin
     cutoff_index = max(group.start for group in resampled_data.groups.values())
@@ -99,14 +107,14 @@ for file_path in Sv_zarr_path_list:
     ds_MVBS = ep.commongrid.compute_MVBS(
         complete_bins_Sv,
         range_var="depth",
-        range_bin='0.5m',  # in meters
-        ping_time_bin='5s',  # in seconds
+        range_bin=args.range_bin,
+        ping_time_bin=args.ping_bin,
     )
 
     # Accumulate MVBS in memory
     mvbs_parts.append(ds_MVBS)
 
-if len(mvbs_parts) == 0:
+if not mvbs_parts:
     raise RuntimeError(
         "No MVBS datasets were computed. Check input Sv zarr files and resampling bins.")
 
