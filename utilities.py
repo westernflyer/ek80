@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Iterable, List
 
 
-def find_raw_files(inputs: Iterable[str]) -> List[str]:
+def find_raw_files(inputs: Iterable[str]) -> List[Path]:
     """
     Find and return a list of raw files from the given input paths. This function processes the
     provided paths, expanding user home directories and environment variables, resolving glob
@@ -16,7 +16,7 @@ def find_raw_files(inputs: Iterable[str]) -> List[str]:
         files.
 
     Returns:
-        List[str]: A sorted list of validated file paths.
+        List[Path]: A sorted list of validated file paths.
     """
     seen = set()
     for inp in inputs:
@@ -25,7 +25,7 @@ def find_raw_files(inputs: Iterable[str]) -> List[str]:
         # Expand glob patterns, then scan for valid files
         for c in glob.glob(inp):
             if os.path.isfile(c):
-                seen.add(c)
+                seen.add(Path(c))
             else:
                 print(f"Warning: {c} is not a file or does not exist. Ignored")
     return sorted(list(seen))
