@@ -11,6 +11,8 @@ The main features include:
 Module requires Echopype and Dask for its operations.
 """
 import argparse
+import os.path
+import sys
 import warnings
 from pathlib import Path
 from typing import Iterable
@@ -25,21 +27,20 @@ warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=UserWarning)
 
 
-def convert(inputs: Iterable[Path],
+def convert(raw_files: Iterable[Path],
             save_dir: str = "../converted/",
             sonar_model: str = "ek80",
             use_swap: bool = True):
     """
     Converts a list of `.raw` files into zarr format and saves them in a given or default directory.
 
-    This function identifies `.raw` files from the given inputs and processes them asynchronously.
-    If no `.raw` files are found, it exits with a notification. The function uses Dask to manage
-    parallel processing. It creates the output directory if it does not exist. The files are then
-    converted and saved to the output directory
+    The function uses Dask to manage parallel processing. It creates the output
+    directory if it does not exist. The files are then converted and saved to
+    the output directory
 
     Parameters:
-    inputs: Iterable[str]
-        A collection of file paths or directories to search for `.raw` files.
+    raw_files: Iterable[str]
+        A collection of `.raw` files.
     save_dir: Path, optional
         The directory where converted files will be saved, relative to the original file. Default
         is "../converted/".
@@ -54,13 +55,6 @@ def convert(inputs: Iterable[Path],
     Returns:
         None
     """
-    raw_files = find_raw_files(inputs)
-    if not raw_files:
-        print("No .raw files found for inputs:", list(inputs))
-        return
-
-    print(f"Found {len(raw_files)} raw files")
-
     # Use maximum number of CPUs for Dask Client (defaults)
     client = Client()
     print("Dask Client Dashboard:", client.dashboard_link)
@@ -98,8 +92,15 @@ def parse_args():
         description="Convert EK80 .raw files to zarr using Echopype and Dask.")
     parser.add_argument(
         "inputs",
-        nargs="+",
-        help="Input .raw files or glob patterns",
+        nargs="*",
+        help="Input .raw files or glob patterns. Use either positional arguments, "
+             "or --deploy-dir, but not both.",
+    )
+    parser.add_argument(
+        "--deploy-dir",
+        default=None,
+        help="Root directory of deployment files. Use either this option, "
+             "or positional arguments, but not both.",
     )
     parser.add_argument(
         "-o",
@@ -123,8 +124,24 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
+    if args.inputs and args.deploy_dir:
+        sys.exit("Error: Cannot specify both positional arguments and --deploy-dir.")
+    if args.inputs:
+        raw_files = find_raw_files(args.inputs)
+    elif args.deploy_dir:
+        raw_files = find_raw_files([os.path.join(args.deploy_dir, "raw", "*.raw")])
+    else:
+        sys.exit("Error: Must specify either positional arguments or --deploy-dir.")
+
+    if not raw_files:
+        print("No input .raw files found.")
+        print("Nothing done.")
+        sys.exit(0)
+
+    print(f"Found {len(raw_files)} raw files")
+
     convert(
-        inputs=args.inputs,
+        raw_files=raw_files,
         save_dir=args.save_dir,
         sonar_model=args.sonar_model,
         use_swap=not args.no_swap,
