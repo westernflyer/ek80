@@ -11,9 +11,8 @@ The main features include:
 Module requires Echopype and Dask for its operations.
 """
 import argparse
-import os
-import os.path
 import warnings
+from pathlib import Path
 from typing import Iterable
 
 import echopype as ep
@@ -26,24 +25,24 @@ warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=UserWarning)
 
 
-def convert(inputs: Iterable[str],
-            save_dir: str | None = None,
+def convert(inputs: Iterable[Path],
+            save_dir: str = "../converted/",
             sonar_model: str = "ek80",
             use_swap: bool = True):
     """
     Converts a list of `.raw` files into zarr format and saves them in a given or default directory.
 
-    This function identifies `.raw` files from the given inputs and processes them asynchronously. If no
-    `.raw` files are found, it exits with a notification. The function employs Dask to manage parallel
-    processing. It creates the output directory if it does not exist. The files are then converted and saved
-    to the specified or automatically determined directory.
+    This function identifies `.raw` files from the given inputs and processes them asynchronously.
+    If no `.raw` files are found, it exits with a notification. The function uses Dask to manage
+    parallel processing. It creates the output directory if it does not exist. The files are then
+    converted and saved to the output directory
 
     Parameters:
     inputs: Iterable[str]
         A collection of file paths or directories to search for `.raw` files.
-    save_dir: str | None, optional
-        The directory where converted files will be saved. If not provided, defaults to a folder named
-        `echodata_zarr` in the current working directory.
+    save_dir: Path, optional
+        The directory where converted files will be saved, relative to the original file. Default
+        is "../converted/".
     sonar_model: str, optional
         The sonar model type to use for the conversion, defaulting to "ek80".
     use_swap: bool, optional
@@ -62,16 +61,6 @@ def convert(inputs: Iterable[str],
 
     print(f"Found {len(raw_files)} raw files")
 
-    # Determine default save directory if not provided
-    if save_dir is None:
-        # With directories ignored, default to CWD
-        base_dir = os.getcwd()
-        save_dir = os.path.abspath(os.path.join(base_dir, "echodata_zarr"))
-    else:
-        save_dir = os.path.abspath(os.path.expanduser(os.path.expandvars(save_dir)))
-
-    os.makedirs(save_dir, exist_ok=True)
-
     # Use maximum number of CPUs for Dask Client (defaults)
     client = Client()
     print("Dask Client Dashboard:", client.dashboard_link)
@@ -79,12 +68,15 @@ def convert(inputs: Iterable[str],
     # Parse `.raw` file and save to zarr format
     open_and_save_futures = []
     for raw_file in raw_files:
+        # Where to save the converted file
+        intermediate_path = raw_file.parent / Path(save_dir) / raw_file.stem
+        save_path = intermediate_path.with_suffix(".zarr").resolve()
         open_and_save_future = client.submit(
             open_and_save,
             raw_file=raw_file,
             sonar_model=sonar_model,
             use_swap=use_swap,
-            save_path=save_dir
+            save_path=save_path,
         )
         open_and_save_futures.append(open_and_save_future)
     client.gather(open_and_save_futures)
@@ -92,7 +84,7 @@ def convert(inputs: Iterable[str],
 
 def open_and_save(raw_file, sonar_model, use_swap, save_path):
     """Open and save an EchoData object to zarr."""
-    print(f"Converting {raw_file}")
+    print(f"Converting {raw_file}; saving to {save_path}")
     ed = ep.open_raw(
         raw_file=raw_file,
         sonar_model=sonar_model,
@@ -113,8 +105,8 @@ def parse_args():
         "-o",
         "--out",
         dest="save_dir",
-        default=None,
-        help="Output directory to store netCDF files (default: ./echodata_zarr under input dir)",
+        default="../converted/",
+        help="Output directory, relative to original file (default ../converted/)",
     )
     parser.add_argument(
         "--sonar-model",
