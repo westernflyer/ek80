@@ -30,7 +30,7 @@ def find_raw_files(inputs: Iterable[str]) -> List[Path]:
                 print(f"Warning: {c} is not a file or does not exist. Ignored")
     return sorted(list(seen))
 
-def find_zarr_files(inputs: Iterable[str]) -> List[Path]:
+def find_zarr_dirs(inputs: Iterable[str]) -> List[Path]:
     """
     Find Zarr directories within given input paths.
 
