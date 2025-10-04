@@ -1,3 +1,8 @@
+#
+#    Copyright (c) 2025 Tom Keffer <tkeffer@gmail.com>
+#
+#    See the file LICENSE.txt for your rights.
+#
 """
 A module to convert raw echosounder files into Zarr format using echopype and Dask.
 """
@@ -15,7 +20,7 @@ from utilities import find_raw_files
 
 usagestr = """%(prog)s -h|--help
        %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] inputs ...
-       %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] --deploy-dir DEPLOY_DIR
+       %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] --root-dir ROOT_DIR
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
@@ -91,10 +96,10 @@ def parse_args():
         "inputs",
         nargs="*",
         help="Input .raw files or glob patterns. Use either positional arguments, "
-             "or --deploy-dir, but not both.",
+             "or --root-dir, but not both.",
     )
     parser.add_argument(
-        "--deploy-dir",
+        "--root-dir",
         default=None,
         help="Root directory for a deployment. It should contain a directory named 'raw' containing the raw data files. "
              "Use either this option, or positional arguments, but not both.",
@@ -121,14 +126,14 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    if args.inputs and args.deploy_dir:
-        sys.exit("Error: Cannot specify both positional arguments and --deploy-dir.")
+    if args.inputs and args.root_dir:
+        sys.exit("Error: Cannot specify both positional arguments and --root-dir.")
     elif args.inputs:
         raw_files = find_raw_files(args.inputs)
-    elif args.deploy_dir:
-        raw_files = find_raw_files([os.path.join(args.deploy_dir, "raw", "*.raw")])
+    elif args.root_dir:
+        raw_files = find_raw_files([os.path.join(args.root_dir, "raw", "*.raw")])
     else:
-        sys.exit("Error: Must specify either positional arguments or --deploy-dir.")
+        sys.exit("Error: Must specify either positional arguments or --root-dir.")
 
     if not raw_files:
         print("No input .raw files found.")

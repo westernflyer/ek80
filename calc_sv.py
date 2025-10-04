@@ -1,3 +1,8 @@
+#
+#    Copyright (c) 2025 Tom Keffer <tkeffer@gmail.com>
+#
+#    See the file LICENSE.txt for your rights.
+#
 """
 A module to calculate Sv from converted echosounder data in Zarr format, using echopype and Dask.
 
@@ -20,7 +25,7 @@ from utilities import find_zarr_dirs
 
 usagestr = """%(prog)s -h|--help
        %(prog)s [-o SAVE_DIR] [--encode-mode=(complex|power) [--depth-offset=OFFSET] [--waveform-mode=MODE] inputs ...
-       %(prog)s [-o SAVE_DIR] [--encode-mode=(complex|power) [--depth-offset=OFFSET] [--waveform-mode=MODE] --deploy-dir DEPLOY_DIR
+       %(prog)s [-o SAVE_DIR] [--encode-mode=(complex|power) [--depth-offset=OFFSET] [--waveform-mode=MODE] --root-dir ROOT_DIR
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
@@ -70,8 +75,8 @@ def calculate_sv(zarr_dir: Path,
     # Add depth to the Sv dataset
     ds_Sv = ep.consolidate.add_depth(ds_Sv, depth_offset=depth_offset)
 
-    # Save Sv dataset to Zarr on disk
-    ds_Sv.to_zarr(save_path / f"{zarr_dir.stem}_Sv.zarr", mode="w")
+    # Save Sv dataset in Zarr format
+    ds_Sv.to_zarr(save_path, mode="w")
 
 
 def parse_args():
@@ -82,10 +87,10 @@ def parse_args():
         "inputs",
         nargs="*",
         help="Input data directories in Zarr format. Can use glob patterns. Use either positional"
-             " arguments, or --deploy-dir, but not both.",
+             " arguments, or --root-dir, but not both.",
     )
     parser.add_argument(
-        "--deploy-dir",
+        "--root-dir",
         default=None,
         help="Root directory of deployment files. Use either this option, "
              "or positional arguments, but not both.",
@@ -123,14 +128,14 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    if args.inputs and args.deploy_dir:
-        sys.exit("Error: Cannot specify both positional arguments and --deploy-dir.")
+    if args.inputs and args.root_dir:
+        sys.exit("Error: Cannot specify both positional arguments and --root-dir.")
     elif args.inputs:
         zarr_dirs = find_zarr_dirs(args.inputs)
-    elif args.deploy_dir:
-        zarr_dirs = find_zarr_dirs([os.path.join(args.deploy_dir, "converted", "*.zarr")])
+    elif args.root_dir:
+        zarr_dirs = find_zarr_dirs([os.path.join(args.root_dir, "converted", "*.zarr")])
     else:
-        sys.exit("Error: Must specify either positional arguments or --deploy-dir.")
+        sys.exit("Error: Must specify either positional arguments or --root-dir.")
 
     if not zarr_dirs:
         print("No input Zarr directories found.")
