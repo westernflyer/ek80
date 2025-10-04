@@ -1,14 +1,5 @@
 """
-This module provides functionality to convert raw sonar files into zarr format using Echopype
-and Dask for distributed processing. It includes commands to find valid raw files, perform
-conversion, and manage arguments for command-line execution.
-
-The main features include:
-- Finding and validating input file paths or patterns.
-- Converting raw files into zarr format, with support for distributed computation.
-- Command-line parsing for easy execution and configuration.
-
-Module requires Echopype and Dask for its operations.
+A module to convert raw echosounder files into Zarr format using echopype and Dask.
 """
 import argparse
 import os.path
@@ -21,6 +12,11 @@ import echopype as ep
 from dask.distributed import Client
 
 from utilities import find_raw_files
+
+usagestr = """%(prog)s -h|--help
+       %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] inputs ...
+       %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] --deploy-dir DEPLOY_DIR
+"""
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 # Ignore large graph dask UserWarnings
@@ -89,7 +85,8 @@ def open_and_save(raw_file, sonar_model, use_swap, save_path):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Convert EK80 .raw files to zarr using Echopype and Dask.")
+        description="Convert EK80 .raw files to Zarr using echopype and Dask.",
+        usage=usagestr, )
     parser.add_argument(
         "inputs",
         nargs="*",
@@ -99,8 +96,8 @@ def parse_args():
     parser.add_argument(
         "--deploy-dir",
         default=None,
-        help="Root directory of deployment files. Use either this option, "
-             "or positional arguments, but not both.",
+        help="Root directory for a deployment. It should contain a directory named 'raw' containing the raw data files. "
+             "Use either this option, or positional arguments, but not both.",
     )
     parser.add_argument(
         "-o",
@@ -126,7 +123,7 @@ if __name__ == '__main__':
     args = parse_args()
     if args.inputs and args.deploy_dir:
         sys.exit("Error: Cannot specify both positional arguments and --deploy-dir.")
-    if args.inputs:
+    elif args.inputs:
         raw_files = find_raw_files(args.inputs)
     elif args.deploy_dir:
         raw_files = find_raw_files([os.path.join(args.deploy_dir, "raw", "*.raw")])
