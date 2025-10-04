@@ -21,7 +21,7 @@ Python 3.10-3.12. This requirement is due to echopype.
 
 ## Data structure
 
-Although it is now required, the processing pipeline works most efficiently if
+Although it is not required, the processing pipeline works most efficiently if
 the data directory structure is organized in the following way:
 
 ```aiignore
