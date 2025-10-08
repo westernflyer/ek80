@@ -28,6 +28,11 @@ import xarray as xr
 
 from utilities import find_zarr_dirs
 
+usagestr = """%(prog)s -h|--help
+       %(prog)s [--ping-bin PING_BIN] [--range-bin RANGE_BIN] inputs ...
+       %(prog)s [--ping-bin PING_BIN] [--range-bin RANGE_BIN] --root-dir ROOT_DIR
+"""
+
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=FutureWarning)
 
@@ -149,7 +154,10 @@ def plot(mvbs: list[xr.Dataset]):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Process and plot MVBS from Sv Zarr data.")
+    parser = argparse.ArgumentParser(
+        description="Process and plot MVBS from Sv Zarr data.",
+        usage=usagestr,
+    )
     parser.add_argument(
         "inputs",
         nargs="*",
