@@ -92,7 +92,7 @@ def calc_mvbs(zarr_input_dirs: list[Path] = None,
         complete_bins_Sv = concat_ds_Sv.isel(ping_time=slice(0, cutoff_index))
 
         # Keep remaining data for next iteration
-        leftover_bin_Sv = concat_ds_Sv.isel(ping_time=slice(cutoff_index, -1))
+        leftover_ds_Sv = concat_ds_Sv.isel(ping_time=slice(cutoff_index, -1))
 
         # Compute MVBS on current subset
         ds_MVBS = ep.commongrid.compute_MVBS(
