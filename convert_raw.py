@@ -19,8 +19,7 @@ from dask.distributed import Client
 from utilities import find_raw_files
 
 usagestr = """%(prog)s -h|--help
-       %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] inputs ...
-       %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] --root-dir ROOT_DIR
+       %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] inputs ... --out-dir OUTPUT_DIR
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
@@ -29,7 +28,7 @@ warnings.simplefilter("ignore", category=UserWarning)
 
 
 def convert(raw_files: Iterable[Path],
-            save_dir: str = "../converted/",
+            out_dir: Path | str,
             sonar_model: str = "ek80",
             use_swap: bool = True):
     """
@@ -42,9 +41,8 @@ def convert(raw_files: Iterable[Path],
     Parameters:
     raw_files: Iterable[str]
         A collection of `.raw` files.
-    save_dir: Path, optional
-        The directory where converted files will be saved, relative to the original file. Default
-        is "../converted/".
+    out_dir: Path|str
+        The directory where converted files will be saved. Required.
     sonar_model: str, optional
         The sonar model type to use for the conversion, defaulting to "ek80".
     use_swap: bool, optional
@@ -63,9 +61,12 @@ def convert(raw_files: Iterable[Path],
     # Parse `.raw` file and save to zarr format
     open_and_save_futures = []
     for raw_file in raw_files:
-        # Where to save the converted file
-        intermediate_path = raw_file.parent / Path(save_dir) / raw_file.stem
-        save_path = intermediate_path.with_suffix(".zarr").resolve()
+        # The directory where the converted file will be saved
+        abs_out_dir = (raw_file.parent / Path(out_dir)).expanduser()
+        # Make it if it doesn't exist
+        abs_out_dir.mkdir(parents=True, exist_ok=True)
+        # Final path to save the converted file
+        save_path = (abs_out_dir / raw_file.stem).with_suffix(".zarr").resolve()
         open_and_save_future = client.submit(
             open_and_save,
             raw_file=raw_file,
@@ -99,17 +100,17 @@ def parse_args():
              "or --root-dir, but not both.",
     )
     parser.add_argument(
+        "-o",
+        "--out-dir",
+        dest="out_dir",
+        required=True,
+        help="Output directory. Required.",
+    )
+    parser.add_argument(
         "--root-dir",
         default=None,
         help="Root directory for a deployment. It should contain a directory named 'raw' containing the raw data files. "
              "Use either this option, or positional arguments, but not both.",
-    )
-    parser.add_argument(
-        "-o",
-        "--out",
-        dest="save_dir",
-        default="../converted/",
-        help="Output directory, relative to original file (default ../converted/)",
     )
     parser.add_argument(
         "--sonar-model",
@@ -144,7 +145,7 @@ if __name__ == '__main__':
 
     convert(
         raw_files=raw_files,
-        save_dir=args.save_dir,
+        out_dir=args.out_dir,
         sonar_model=args.sonar_model,
         use_swap=not args.no_swap,
     )
