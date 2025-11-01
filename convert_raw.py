@@ -7,7 +7,6 @@
 A module to convert raw echosounder files into Zarr format using echopype and Dask.
 """
 import argparse
-import os.path
 import sys
 import warnings
 from pathlib import Path
@@ -19,7 +18,7 @@ from dask.distributed import Client
 from utilities import find_raw_files
 
 usagestr = """%(prog)s -h|--help
-       %(prog)s [-o SAVE_DIR] [--sonar-model SONAR_MODEL] [--no-swap] inputs ... --out-dir OUTPUT_DIR
+       %(prog)s [--sonar-model={ek60|ek80}] [--no-swap] --out-dir=OUT_DIR inputs ...
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
@@ -58,13 +57,14 @@ def convert(raw_files: Iterable[Path],
     client = Client()
     print("Dask Client Dashboard:", client.dashboard_link)
 
+    # The directory where the converted files will be saved
+    abs_out_dir = Path(out_dir).expanduser()
+    # Make it if it doesn't exist
+    abs_out_dir.mkdir(parents=True, exist_ok=True)
+
     # Parse `.raw` file and save to zarr format
     open_and_save_futures = []
     for raw_file in raw_files:
-        # The directory where the converted file will be saved
-        abs_out_dir = (raw_file.parent / Path(out_dir)).expanduser()
-        # Make it if it doesn't exist
-        abs_out_dir.mkdir(parents=True, exist_ok=True)
         # Final path to save the converted file
         save_path = (abs_out_dir / raw_file.stem).with_suffix(".zarr").resolve()
         open_and_save_future = client.submit(
@@ -91,31 +91,25 @@ def open_and_save(raw_file, sonar_model, use_swap, save_path):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Convert EK80 .raw files to Zarr using echopype and Dask.",
+        description="Convert Simrad echosounder .raw files to Zarr format using echopype and Dask.",
         usage=usagestr, )
+
     parser.add_argument(
         "inputs",
         nargs="*",
-        help="Input .raw files or glob patterns. Use either positional arguments, "
-             "or --root-dir, but not both.",
+        help="Input .raw files. Can use glob patterns.",
     )
     parser.add_argument(
-        "-o",
         "--out-dir",
-        dest="out_dir",
         required=True,
         help="Output directory. Required.",
     )
     parser.add_argument(
-        "--root-dir",
-        default=None,
-        help="Root directory for a deployment. It should contain a directory named 'raw' containing the raw data files. "
-             "Use either this option, or positional arguments, but not both.",
-    )
-    parser.add_argument(
         "--sonar-model",
         default="ek80",
-        help="Sonar model for echopype.open_raw (default: ek80)",
+        type=str.lower,
+        choices=["ek60", "ek80"],
+        help="Sonar model for echopype.open_raw. (default: ek80)",
     )
     parser.add_argument(
         "--no-swap",
@@ -127,14 +121,7 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    if args.inputs and args.root_dir:
-        sys.exit("Error: Cannot specify both positional arguments and --root-dir.")
-    elif args.inputs:
-        raw_files = find_raw_files(args.inputs)
-    elif args.root_dir:
-        raw_files = find_raw_files([os.path.join(args.root_dir, "raw", "*.raw")])
-    else:
-        sys.exit("Error: Must specify either positional arguments or --root-dir.")
+    raw_files = find_raw_files(args.inputs)
 
     if not raw_files:
         print("No input .raw files found.")
