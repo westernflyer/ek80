@@ -6,13 +6,12 @@
 """
 A module to calculate Sv from converted echosounder data in Zarr format, using echopype and Dask.
 
-This module calculates calibrated volume backscatter (Sv), and save the
-resultant datasets back to disk. The calculation is distributed using Dask to
-improve efficiency. The module supports configurable calibration parameters such
-as encoding mode, waveform mode, and depth offset.
+This module calculates calibrated volume backscatter (Sv) and saves the results to disk. The calculation is
+distributed using Dask to improve efficiency. The module supports configurable calibration parameters such as
+encoding mode, waveform mode, and depth offset.
+
 """
 import argparse
-import os.path
 import sys
 import warnings
 from pathlib import Path
@@ -24,8 +23,9 @@ from dask.distributed import Client
 from utilities import find_zarr_dirs
 
 usagestr = """%(prog)s -h|--help
-       %(prog)s [-o SAVE_DIR] [--encode-mode=(complex|power) [--depth-offset=OFFSET] [--waveform-mode=MODE] inputs ...
-       %(prog)s [-o SAVE_DIR] [--encode-mode=(complex|power) [--depth-offset=OFFSET] [--waveform-mode=MODE] --root-dir ROOT_DIR
+       %(prog)s [--encode-mode={complex|power}] [--depth-offset=OFFSET] \\
+                  [--waveform-mode={CW,BB}] [--workers=WORKERS] \\
+                  --out-dir=OUT_DIR inputs ...
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
@@ -34,21 +34,25 @@ warnings.simplefilter("ignore", category=UserWarning)
 
 
 def calc_all(zarr_dirs: Iterable[Path],
-             save_dir: str = "../sv/",
+             out_dir: Path | str,
              encode_mode: str = "complex",
              depth_offset: float | int = 1,
-             waveform_mode: str = "CW"):
+             waveform_mode: str = "CW",
+             workers=1):
 
-    # Use maximum number of CPUs for Dask Client (defaults)
-    client = Client()
+    client = Client(n_workers=workers, threads_per_worker=1)
     print("Dask Client Dashboard:", client.dashboard_link)
+
+    # The directory where the Sv files will be saved
+    abs_out_dir = Path(out_dir).expanduser()
+    # Make it if it doesn't exist
+    abs_out_dir.mkdir(parents=True, exist_ok=True)
 
     # Parse zarr directories, calculate Sv, and save to disk
     open_and_save_futures = []
     for zarr_dir in zarr_dirs:
-        # Where to save the converted file
-        intermediate_path = zarr_dir.parent / Path(save_dir) / zarr_dir.stem
-        save_path = intermediate_path.with_suffix(".sv").resolve()
+        # Final path to save the Sv file
+        save_path = (abs_out_dir / zarr_dir.stem).with_suffix(".sv").resolve()
         open_and_save_future = client.submit(
             calculate_sv,
             zarr_dir=zarr_dir,
@@ -63,14 +67,22 @@ def calc_all(zarr_dirs: Iterable[Path],
 
 def calculate_sv(zarr_dir: Path,
                  save_path: Path,
-                 waveform_mode: str = "CW",
+                 waveform_mode: str = "cw",
                  encode_mode: str = "complex",
                  depth_offset: float | None = 1) -> None:
-    print(f"Calculating Sv from {zarr_dir}; saving to {save_path}")
+    print(f"Calculating Sv from {zarr_dir}; saving to {save_path}", flush=True)
     ed_zarr = ep.open_converted(zarr_dir)
 
-    # Calibrate backscatter measurement to Sv
-    ds_Sv = ep.calibrate.compute_Sv(ed_zarr, waveform_mode=waveform_mode, encode_mode=encode_mode)
+    # Some of the Zarr files can raise an AttributeError
+    # with a message: 'NoneType' object has no attribute 'sel'
+    # This intercepts the exception and skips the file
+    try:
+        # Calibrate backscatter measurement to Sv
+        ds_Sv = ep.calibrate.compute_Sv(ed_zarr, waveform_mode=waveform_mode, encode_mode=encode_mode)
+    except AttributeError as e:
+        print(f"Error: {e}")
+        print(f"Skipping {zarr_dir}")
+        return
 
     # Add depth to the Sv dataset
     ds_Sv = ep.consolidate.add_depth(ds_Sv, depth_offset=depth_offset)
@@ -83,28 +95,21 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Calculate Sv from converted data in Zarr format using echopype.",
         usage=usagestr,)
+
     parser.add_argument(
         "inputs",
         nargs="*",
-        help="Input data directories in Zarr format. Can use glob patterns. Use either positional"
-             " arguments, or --root-dir, but not both.",
+        help="Input .zarr data directories in Zarr format. Can use glob patterns.",
     )
     parser.add_argument(
-        "--root-dir",
-        default=None,
-        help="Root directory of deployment files. Use either this option, "
-             "or positional arguments, but not both.",
-    )
-    parser.add_argument(
-        "-o",
-        "--out",
-        dest="save_dir",
-        default="../sv/",
-        help="Output directory to store Sv zarr files (default: ./sv_zarr under CWD)",
+        "--out-dir",
+        required=True,
+        help="Output directory. Required.",
     )
     parser.add_argument(
         "--encode-mode",
         dest="encode_mode",
+        type=str.lower,
         choices=["complex", "power"],
         default="complex",
         help="Encoding mode of EK80 data for calibration (default: complex)",
@@ -119,23 +124,25 @@ def parse_args():
     parser.add_argument(
         "--waveform-mode",
         dest="waveform_mode",
+        type=str.upper,
         choices=["CW", "BB"],
         default="CW",
         help="Waveform mode for calibration (default: CW)",
+    )
+
+    parser.add_argument(
+        "--workers",
+        dest="workers",
+        type=int,
+        default=2,
+        help="Number of workers for Dask Client (default: 2)",
     )
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_args()
-    if args.inputs and args.root_dir:
-        sys.exit("Error: Cannot specify both positional arguments and --root-dir.")
-    elif args.inputs:
-        zarr_dirs = find_zarr_dirs(args.inputs)
-    elif args.root_dir:
-        zarr_dirs = find_zarr_dirs([os.path.join(args.root_dir, "converted", "*.zarr")])
-    else:
-        sys.exit("Error: Must specify either positional arguments or --root-dir.")
+    zarr_dirs = find_zarr_dirs(args.inputs)
 
     if not zarr_dirs:
         print("No input Zarr directories found.")
@@ -146,8 +153,9 @@ if __name__ == '__main__':
 
     calc_all(
         zarr_dirs=zarr_dirs,
-        save_dir=args.save_dir,
+        out_dir=args.out_dir,
         encode_mode=args.encode_mode,
         depth_offset=args.depth_offset,
         waveform_mode=args.waveform_mode,
+        workers=args.workers
     )

@@ -17,10 +17,10 @@ Raises:
     RuntimeError: If no MVBS datasets are computed, indicating input files may be misconfigured.
 """
 import argparse
-import os.path
 import sys
 import warnings
 from pathlib import Path
+from typing import Iterable
 
 import echopype as ep
 import matplotlib.pyplot as plt
@@ -30,14 +30,13 @@ from utilities import find_zarr_dirs
 
 usagestr = """%(prog)s -h|--help
        %(prog)s [--ping-bin PING_BIN] [--range-bin RANGE_BIN] inputs ...
-       %(prog)s [--ping-bin PING_BIN] [--range-bin RANGE_BIN] --root-dir ROOT_DIR
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=FutureWarning)
 
 
-def calc_mvbs(zarr_input_dirs: list[Path] = None,
+def calc_mvbs(zarr_input_dirs: Iterable[Path] = None,
               ping_bin: str = "1s",
               range_bin: str = "0.5m") -> list[xr.Dataset]:
     """
@@ -62,7 +61,7 @@ def calc_mvbs(zarr_input_dirs: list[Path] = None,
           f"and range bins of size {range_bin}")
 
     # Initialize leftover ds_Sv zarr as None
-    leftover_ds_Sv = None
+    leftover_ds_sv = None
 
     # Accumulate MVBS datasets in memory instead of writing to disk
     mvbs_parts = []
@@ -71,17 +70,17 @@ def calc_mvbs(zarr_input_dirs: list[Path] = None,
     for zarr_input_dir in zarr_input_dirs:
 
         # Open ds_Sv from disk Zarr
-        print(f"Calculating MVBS from Sv file {zarr_input_dir}")
-        ds_Sv = xr.open_zarr(zarr_input_dir)
+        print(f"Calculating MVBS from Sv file {zarr_input_dir}", flush=True)
+        ds_sv = xr.open_zarr(zarr_input_dir)
 
         # Concat leftover Sv with current Sv
-        if leftover_ds_Sv is not None:
-            concat_ds_Sv = xr.concat([leftover_ds_Sv, ds_Sv], dim="ping_time")
+        if leftover_ds_sv is not None:
+            concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv], dim="ping_time")
         else:
-            concat_ds_Sv = ds_Sv
+            concat_ds_sv = ds_sv
 
         # Create a Resample object for subsampling into user-specified ping bins
-        resampled_data = concat_ds_Sv.resample(ping_time=args.ping_bin, skipna=True)
+        resampled_data = concat_ds_sv.resample(ping_time=args.ping_bin, skipna=True)
 
         # Determine the start index of the last incomplete bin
         cutoff_index = max(group.start for group in resampled_data.groups.values())
@@ -89,21 +88,23 @@ def calc_mvbs(zarr_input_dirs: list[Path] = None,
         # Split data into complete and incomplete bins:
 
         # Take data up to the last complete bin
-        complete_bins_Sv = concat_ds_Sv.isel(ping_time=slice(0, cutoff_index))
+        complete_bins_sv = concat_ds_sv.isel(ping_time=slice(0, cutoff_index))
 
-        # Keep remaining data for next iteration
-        leftover_ds_Sv = concat_ds_Sv.isel(ping_time=slice(cutoff_index, -1))
+        # Keep remaining data for the next iteration
+        leftover_ds_sv = concat_ds_sv.isel(ping_time=slice(cutoff_index, -1))
 
+        print(f"Starting calculating MVBS for {zarr_input_dir}", flush=True)
         # Compute MVBS on current subset
-        ds_MVBS = ep.commongrid.compute_MVBS(
-            complete_bins_Sv,
+        ds_mvbs = ep.commongrid.compute_MVBS(
+            complete_bins_sv,
             range_var="depth",
             range_bin=range_bin,
             ping_time_bin=ping_bin,
         )
+        print(f"Finished calculating MVBS for {zarr_input_dir}", flush=True)
 
         # Accumulate MVBS in memory
-        mvbs_parts.append(ds_MVBS)
+        mvbs_parts.append(ds_mvbs)
 
     return mvbs_parts
 
@@ -132,24 +133,26 @@ def plot(mvbs: list[xr.Dataset]):
 
     # Concatenate along ping_time; datasets share frequency/depth coords
     # Using data_vars='minimal' semantics is implicit in xr.concat for identical vars
-    ds_MVBS = xr.concat(mvbs, dim="ping_time")
+    ds_mvbs = xr.concat(mvbs, dim="ping_time")
 
-    print("Plot 38 kHz channel...")
+    print("Plot 38 kHz channel...", flush=True)
     (
-        ds_MVBS["Sv"]
-        .isel(channel=0)  # Select a channel. Channel 0 is 38k
+        ds_mvbs["Sv"]
+        .isel(channel=0)  # Select a channel. Channel 0 is 38 kHz
         .plot(x='ping_time', y='depth', yincrease=False, vmin=-80, vmax=-10)
     )
     plt.title("38 kHz")
+    plt.ylim(100, 0)  # Set y-axis from 0 to 100
     plt.show()
 
-    print("Plot 200 kHz channel...")
+    print("Plot 200 kHz channel...", flush=True)
     (
-        ds_MVBS["Sv"]
-        .isel(channel=1)  # Select a channel. Channel 1 is 200k
+        ds_mvbs["Sv"]
+        .isel(channel=1)  # Select a channel. Channel 1 is 200 k
         .plot(x='ping_time', y='depth', yincrease=False, vmin=-60, vmax=-10)
     )
     plt.title("200 kHz")
+    plt.ylim(100, 0)  # Set y-axis from 0 to 100
     plt.show()
 
 
@@ -161,14 +164,7 @@ def parse_args():
     parser.add_argument(
         "inputs",
         nargs="*",
-        help="Input Sv data directories in Zarr format. Can use glob patterns. Use either positional"
-             " arguments, or --root-dir, but not both.",
-    )
-    parser.add_argument(
-        "--root-dir",
-        default=None,
-        help="Root directory of deployment files. Use either this option, "
-             "or positional arguments, but not both.",
+        help="Input Sv data directories in Zarr format. Can use glob patterns.",
     )
     parser.add_argument(
         "--ping-bin",
@@ -185,17 +181,10 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    if args.inputs and args.root_dir:
-        sys.exit("Error: Cannot specify both positional arguments and --root-dir.")
-    elif args.inputs:
-        sv_dirs = find_zarr_dirs(args.inputs)
-    elif args.root_dir:
-        sv_dirs = find_zarr_dirs([os.path.join(args.root_dir, "sv", "*.sv")])
-    else:
-        sys.exit("Error: Must specify either positional arguments or --root-dir.")
+    sv_dirs = find_zarr_dirs(args.inputs)
 
     if not sv_dirs:
-        print("No input Zarr directories found.")
+        print("No input Sv Zarr directories found.")
         print("Nothing done.")
         sys.exit(0)
 
