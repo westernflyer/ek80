@@ -6,13 +6,16 @@
 """
 A module to calculate Sv from converted echosounder data in Zarr format, using echopype and Dask.
 
-This module calculates calibrated volume backscatter (Sv) and saves the results to disk. The calculation is
-distributed using Dask to improve efficiency. The module supports configurable calibration parameters such as
-encoding mode, waveform mode, and depth offset.
+This module calculates calibrated volume backscatter (Sv) and saves the results to disk. The
+calculation is distributed using Dask to improve efficiency. The module supports configurable
+calibration parameters such as encoding mode, waveform mode, and depth offset.
 
+Through experimentation, I have found a configuration with 4 workers, 2 threads per worker,
+works well on my 4-core, 8-thread NUC.
 """
 import argparse
 import sys
+import time
 import warnings
 from pathlib import Path
 from typing import Iterable
@@ -23,36 +26,42 @@ from dask.distributed import Client
 from utilities import find_zarr_dirs
 
 usagestr = """%(prog)s -h|--help
-       %(prog)s [--encode-mode={complex|power}] [--depth-offset=OFFSET] \\
-                  [--waveform-mode={CW,BB}] [--workers=WORKERS] \\
-                  --out-dir=OUT_DIR inputs ...
+       %(prog)s [--out-dir=OUT_DIR] [--encode-mode={complex|power}] [--depth-offset=OFFSET] \\
+                  [--waveform-mode={CW,BB}] [--workers=WORKERS] [--threads=THREADS]\\
+                  inputs ...
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 # Ignore large graph dask UserWarnings
 warnings.simplefilter("ignore", category=UserWarning)
+# Ignore UnstableSpecificationWarning. If the class is not directly importable, use a message filter
+try:
+    from zarr.errors import UnstableSpecificationWarning
+
+    warnings.simplefilter("ignore", category=UnstableSpecificationWarning)
+except ImportError:
+    warnings.filterwarnings("ignore", message=".*UnstableSpecificationWarning.*")
 
 
 def calc_all(zarr_dirs: Iterable[Path],
-             out_dir: Path | str,
+             out_dir: Path | str = "../SV_zarr/",
              encode_mode: str = "complex",
              depth_offset: float | int = 1,
              waveform_mode: str = "CW",
-             workers=1):
-
-    client = Client(n_workers=workers, threads_per_worker=1)
+             workers=4,
+             threads=2):
+    client = Client(n_workers=workers, threads_per_worker=threads)
     print("Dask Client Dashboard:", client.dashboard_link)
-
-    # The directory where the Sv files will be saved
-    abs_out_dir = Path(out_dir).expanduser()
-    # Make it if it doesn't exist
-    abs_out_dir.mkdir(parents=True, exist_ok=True)
 
     # Parse zarr directories, calculate Sv, and save to disk
     open_and_save_futures = []
     for zarr_dir in zarr_dirs:
-        # Final path to save the Sv file
-        save_path = (abs_out_dir / zarr_dir.stem).with_suffix(".sv").resolve()
+        # The directory where the Sv files will be saved
+        abs_out_dir = Path(zarr_dir).parent / Path(out_dir).expanduser()
+        # If it doesn't exist, make it
+        abs_out_dir.mkdir(parents=True, exist_ok=True)
+        # Where to save the Sv file
+        save_path = (abs_out_dir / f"{zarr_dir.stem}_Sv.zarr").resolve()
         open_and_save_future = client.submit(
             calculate_sv,
             zarr_dir=zarr_dir,
@@ -78,7 +87,8 @@ def calculate_sv(zarr_dir: Path,
     # This intercepts the exception and skips the file
     try:
         # Calibrate backscatter measurement to Sv
-        ds_Sv = ep.calibrate.compute_Sv(ed_zarr, waveform_mode=waveform_mode, encode_mode=encode_mode)
+        ds_Sv = ep.calibrate.compute_Sv(ed_zarr, waveform_mode=waveform_mode,
+                                        encode_mode=encode_mode)
     except AttributeError as e:
         print(f"Error: {e}")
         print(f"Skipping {zarr_dir}")
@@ -94,17 +104,17 @@ def calculate_sv(zarr_dir: Path,
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Calculate Sv from converted data in Zarr format using echopype.",
-        usage=usagestr,)
+        usage=usagestr, )
 
     parser.add_argument(
         "inputs",
         nargs="*",
-        help="Input .zarr data directories in Zarr format. Can use glob patterns.",
+        help="Input Sv .zarr data directories in Zarr format. Can use glob patterns.",
     )
     parser.add_argument(
         "--out-dir",
-        required=True,
-        help="Output directory. Required.",
+        default="../SV_zarr/",
+        help="Output directory. Default is './SV_zarr/'.",
     )
     parser.add_argument(
         "--encode-mode",
@@ -129,14 +139,21 @@ def parse_args():
         default="CW",
         help="Waveform mode for calibration (default: CW)",
     )
-
     parser.add_argument(
         "--workers",
         dest="workers",
         type=int,
-        default=2,
-        help="Number of workers for Dask Client (default: 2)",
+        default=4,
+        help="Number of workers for Dask Client (default: 4)",
     )
+    parser.add_argument(
+        "--threads",
+        dest="threads",
+        type=int,
+        default=2,
+        help="Number of threads per worker (default: 2)",
+    )
+
     return parser.parse_args()
 
 
@@ -150,12 +167,17 @@ if __name__ == '__main__':
         sys.exit(0)
 
     print(f"Found {len(zarr_dirs)} Zarr directories")
+    print(f"Using {args.workers} workers and {args.threads} threads per worker")
 
+    start = time.time()
     calc_all(
         zarr_dirs=zarr_dirs,
         out_dir=args.out_dir,
         encode_mode=args.encode_mode,
         depth_offset=args.depth_offset,
         waveform_mode=args.waveform_mode,
-        workers=args.workers
+        workers=args.workers,
+        threads=args.threads,
     )
+    stop = time.time()
+    print(f"Calculation completed in {stop - start:.2f} seconds")
