@@ -16,7 +16,8 @@ sv_dir = Path("~/Data/Western_Flyer/baja2025/ek80/SV_zarr").expanduser()
 
 if __name__ == "__main__":
     all_converted = converted_dir.glob("*.zarr")
-    # Form a set of segment names from the Zarr directories. These will be names such as "250501WF-D20250501-T181250"
+    # Form a set of segment names from the Zarr directories. These will be names
+    # such as "250501WF-D20250501-T181250"
     all_segment_names = {Path(f.stem) for f in all_converted}
     sv_dirs = sv_dir.glob("*.zarr")
     # Form a set of segment names from the sv directories
@@ -25,14 +26,18 @@ if __name__ == "__main__":
     missing_sv = sorted(all_segment_names - sv_stem_names)
 
     print(f"Found {len(all_segment_names)} converted Zarr directories", flush=True)
-    print(f"Found {len(sv_stem_names)} sv directories", flush=True)
+    print(f"Found {len(sv_stem_names)} Sv directories", flush=True)
     print(f"Identified {len(missing_sv)} missing Sv segments", flush=True)
 
     if missing_sv:
         print("Converting missing segments", flush=True)
 
+        # Print the missing segments if there are not too many of them:
+        if len(missing_sv) <= 40:
+            print(f"Missing segments: {[str(s) for s in missing_sv]}", flush=True)
+
         starting_directories = [Path(f).with_suffix(".zarr") for f in missing_sv]
         os.chdir(converted_dir)
-        calc_all(zarr_dirs=starting_directories, out_dir=sv_dir)
+        calc_all(zarr_dirs=starting_directories, out_dir=sv_dir, workers=1, threads=1)
     else:
         print("All Sv have already been calculated.")

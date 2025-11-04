@@ -11,7 +11,10 @@ calculation is distributed using Dask to improve efficiency. The module supports
 calibration parameters such as encoding mode, waveform mode, and depth offset.
 
 Through experimentation, I have found a configuration with 4 workers, 2 threads per worker,
-works well on my 4-core, 8-thread NUC.
+works best on my 4-core, 8-thread NUC. Even so, expect to get fatal
+"asyncio.exceptions.CancelledError" exceptions after processing 60-80 files. For this reason,
+use the script "calc_missing_sv.py" to calculate missing Sv files and expect to keep restarting
+it.
 """
 import argparse
 import sys
@@ -64,6 +67,7 @@ def calc_all(zarr_dirs: Iterable[Path],
         save_path = (abs_out_dir / f"{zarr_dir.stem}_Sv.zarr").resolve()
         open_and_save_future = client.submit(
             calculate_sv,
+            pure=False,
             zarr_dir=zarr_dir,
             save_path=save_path,
             waveform_mode=waveform_mode,
@@ -79,12 +83,12 @@ def calculate_sv(zarr_dir: Path,
                  waveform_mode: str = "cw",
                  encode_mode: str = "complex",
                  depth_offset: float | None = 1) -> None:
-    print(f"Calculating Sv from {zarr_dir}; saving to {save_path}", flush=True)
+    print(f"Calculating Sv from {zarr_dir}", flush=True)
     ed_zarr = ep.open_converted(zarr_dir)
 
-    # Some of the Zarr files can raise an AttributeError
-    # with a message: 'NoneType' object has no attribute 'sel'
-    # This intercepts the exception and skips the file
+    # Some of the Zarr files can raise an AttributeError with a message: 'NoneType' object has no
+    # attribute 'sel'. Don't know why this is happening. Intercept the exception and skip
+    # the file
     try:
         # Calibrate backscatter measurement to Sv
         ds_Sv = ep.calibrate.compute_Sv(ed_zarr, waveform_mode=waveform_mode,
@@ -99,6 +103,7 @@ def calculate_sv(zarr_dir: Path,
 
     # Save Sv dataset in Zarr format
     ds_Sv.to_zarr(save_path, mode="w")
+    print(f"Saved Sv to {save_path}", flush=True)
 
 
 def parse_args():

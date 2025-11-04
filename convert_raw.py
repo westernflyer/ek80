@@ -80,6 +80,7 @@ def convert(raw_files: Iterable[Path],
     for raw_file in raw_files:
         open_and_save_future = client.submit(
             open_and_save,
+            pure=False,
             raw_file=raw_file,
             sonar_model=sonar_model,
             use_swap=use_swap,
