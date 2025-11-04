@@ -11,16 +11,16 @@ from pathlib import Path
 
 from calc_sv import calc_all
 
-converted_dir = Path("~/Data/processed/Western_Flyer/baja2025/ek80/").expanduser()
-sv_dir = Path("~/Data/processed/Western_Flyer/baja2025/ek80/sv/").expanduser()
+converted_dir = Path("~/Data/Western_Flyer/baja2025/ek80/echodata_zarr").expanduser()
+sv_dir = Path("~/Data/Western_Flyer/baja2025/ek80/SV_zarr").expanduser()
 
 if __name__ == "__main__":
     all_converted = converted_dir.glob("*.zarr")
     # Form a set of segment names from the Zarr directories. These will be names such as "250501WF-D20250501-T181250"
     all_segment_names = {Path(f.stem) for f in all_converted}
-    sv_dirs = sv_dir.glob("*.sv")
+    sv_dirs = sv_dir.glob("*.zarr")
     # Form a set of segment names from the sv directories
-    sv_stem_names = {Path(f.stem) for f in sv_dirs}
+    sv_stem_names = {Path(f.stem.removesuffix("_Sv")) for f in sv_dirs}
     # The difference will be the segment names of the missing sv directories. Sort them.
     missing_sv = sorted(all_segment_names - sv_stem_names)
 
@@ -29,8 +29,6 @@ if __name__ == "__main__":
     print(f"Identified {len(missing_sv)} missing Sv segments", flush=True)
 
     if missing_sv:
-        print(f"Missing Sv segments: {[str(d) for d in missing_sv]}", flush=True)
-
         print("Converting missing segments", flush=True)
 
         starting_directories = [Path(f).with_suffix(".zarr") for f in missing_sv]
