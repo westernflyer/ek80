@@ -12,8 +12,8 @@ from pathlib import Path
 
 from convert_raw import convert
 
-raw_dir = Path("~/Data/raw/Western_Flyer/baja2025/ek80/").expanduser()
-converted_dir = Path("~/Data/processed/Western_Flyer/baja2025/ek80/").expanduser()
+raw_dir = Path("~/Data/Western_Flyer/baja2025/ek80/").expanduser()
+converted_dir = raw_dir / "echodata_zarr"
 
 all_files = raw_dir.glob("*.raw")
 # Form a set of file names from the raw files
