@@ -41,8 +41,8 @@ def convert(raw_files: Iterable[Path],
             out_dir: Path | str = "./echodata_zarr/",
             sonar_model: str = "ek80",
             use_swap: bool = True,
-            workers=1,
-            threads=1):
+            workers=4,
+            threads=2):
     """
     Converts a list of `.raw` files into zarr format and saves them in a given or default directory.
 
@@ -71,21 +71,19 @@ def convert(raw_files: Iterable[Path],
     print("Dask Client Dashboard:", client.dashboard_link)
 
     # The directory where the converted files will be saved
-    abs_out_dir = Path(out_dir).expanduser()
+    full_out_dir = Path(out_dir).expanduser()
     # Make it if it doesn't exist
-    abs_out_dir.mkdir(parents=True, exist_ok=True)
+    full_out_dir.mkdir(parents=True, exist_ok=True)
 
     # Parse `.raw` file and save to zarr format
     open_and_save_futures = []
     for raw_file in raw_files:
-        # Final path to save the converted file
-        save_path = (abs_out_dir / raw_file.stem).with_suffix(".zarr").resolve()
         open_and_save_future = client.submit(
             open_and_save,
             raw_file=raw_file,
             sonar_model=sonar_model,
             use_swap=use_swap,
-            save_path=save_path,
+            save_path=full_out_dir,
         )
         open_and_save_futures.append(open_and_save_future)
     client.gather(open_and_save_futures)
