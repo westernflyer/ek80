@@ -59,3 +59,11 @@ def find_zarr_dirs(inputs: Iterable[str]) -> List[Path]:
             else:
                 print(f"Warning: {p} is not a directory or does not exist. Ignored")
     return sorted(list(seen))
+
+def find_deploy_members(deploy_id : Path|str) -> Iterable[Path]:
+    """
+    Find Zarr hierarchies with the given deployment ID prefix.
+    """
+    # Convert any possible string to a Path. Resolve '~'.
+    deploy_id = Path(deploy_id).expanduser()
+    return deploy_id.parent.glob(f"{deploy_id.stem}*.zarr")
