@@ -80,7 +80,7 @@ def calc_mvbs(zarr_input_dirs: Iterable[Path] = None,
             concat_ds_sv = ds_sv
 
         # Create a Resample object for subsampling into user-specified ping bins
-        resampled_data = concat_ds_sv.resample(ping_time=args.ping_bin, skipna=True)
+        resampled_data = concat_ds_sv.resample(ping_time=ping_bin, skipna=True)
 
         # Determine the start index of the last incomplete bin
         cutoff_index = max(group.start for group in resampled_data.groups.values())
