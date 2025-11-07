@@ -47,7 +47,7 @@ except ImportError:
 
 
 def calc_all(zarr_dirs: Iterable[Path],
-             out_dir: Path | str = "../SV_zarr/",
+             out_dir: Path | str = "../Sv_zarr/",
              encode_mode: str = "complex",
              depth_offset: float | int = 1,
              waveform_mode: str = "CW",
@@ -118,8 +118,8 @@ def parse_args():
     )
     parser.add_argument(
         "--out-dir",
-        default="../SV_zarr/",
-        help="Output directory. Default is './SV_zarr/'.",
+        default="../Sv_zarr/",
+        help="Output directory. Default is './Sv_zarr/'.",
     )
     parser.add_argument(
         "--encode-mode",
