@@ -16,14 +16,12 @@ Raises:
     RuntimeError: If no MVBS datasets are computed, indicating input files may be misconfigured.
 """
 import argparse
-import sys
 import warnings
 from pathlib import Path
 from typing import Iterable, Iterator
 
 import echopype as ep
 import xarray as xr
-from xarray import Dataset
 
 import utilities
 
@@ -36,8 +34,8 @@ warnings.simplefilter("ignore", category=FutureWarning)
 
 
 def gen_mvbs(zarr_inputs: Iterable[Path | str] = None,
-             ping_bin: str = "1s",
-             range_bin: str = "0.5m") -> Iterator[xr.Dataset]:
+             ping_bin: str = "5s",
+             range_bin: str = "1.0m") -> Iterator[xr.Dataset]:
     """
     Generator that calculates Mean Volume Backscattering Strength (MVBS) from Zarr hierarchies
     of Sv data.
@@ -65,9 +63,9 @@ def gen_mvbs(zarr_inputs: Iterable[Path | str] = None,
 
     # Iterate through all Sv Zarr Paths
     for zarr_input in zarr_inputs:
+        print(f"Calculating MVBS for Sv hierarchy {zarr_input}", flush=True)
 
         # Open ds_Sv from disk Zarr
-        print(f"Calculating MVBS for Sv hierarchy {zarr_input}", flush=True)
         ds_sv = xr.open_zarr(zarr_input)
 
         # Concat leftover Sv with current Sv
@@ -103,6 +101,11 @@ def gen_mvbs(zarr_inputs: Iterable[Path | str] = None,
         yield ds_mvbs
 
 
+def save_mvbs(mvbs, out_dir='../MVBS_zarr/'):
+    mvbs.to_zarr(out_dir, mode="w")
+    print(f"Saved MVBS to {out_dir}", flush=True)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Given a deployment path, process and save MVBS.",
@@ -112,13 +115,18 @@ def parse_args():
         "deploy_prefix",
         nargs=1,
         metavar="DEPLOY-PREFIX",
-        help="Path to a deployment ID. "
-             "This is something like '~/Data/Western_Flyer/baja2025/ek80/250416WF.'",
+        help="Path to a deployment prefix. "
+             "This is something like '~/Data/Western_Flyer/baja2025/ek80/250416WF'",
+    )
+    parser.add_argument(
+        "--out-dir",
+        default="../MVBS_zarr/",
+        help="Output directory. Default is '../MVBS_zarr/'.",
     )
     parser.add_argument(
         "--ping-bin",
-        default="2s",
-        help="Bin size for pings. Default: 2s",
+        default="5s",
+        help="Bin size for pings. Default: 5s",
     )
     parser.add_argument(
         "--range-bin",
@@ -136,5 +144,6 @@ if __name__ == '__main__':
     zarr_members = sorted(utilities.find_deploy_members(args.deploy_prefix[0]))
     print([str(z) for z in zarr_members])
 
-    for mvbs in gen_mvbs(zarr_inputs=zarr_members, ping_bin=args.ping_bin, range_bin=args.range_bin):
-        print(mvbs)
+    for mvbs in gen_mvbs(zarr_inputs=zarr_members, ping_bin=args.ping_bin,
+                         range_bin=args.range_bin):
+        save_mvbs(mvbs=mvbs, out_dir=args.out_dir)
