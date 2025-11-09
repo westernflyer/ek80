@@ -12,7 +12,7 @@ from pathlib import Path
 from calc_sv import calc_all
 
 converted_dir = Path("~/Data/Western_Flyer/baja2025/ek80/echodata_zarr").expanduser()
-sv_dir = Path("~/Data/Western_Flyer/baja2025/ek80/SV_zarr").expanduser()
+sv_dir = Path("~/Data/Western_Flyer/baja2025/ek80/Sv_zarr").expanduser()
 
 if __name__ == "__main__":
     all_converted = converted_dir.glob("*.zarr")
