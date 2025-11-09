@@ -119,7 +119,7 @@ def parse_args():
     parser.add_argument(
         "--out-dir",
         default="../Sv_zarr/",
-        help="Output directory. Default is './Sv_zarr/'.",
+        help="Output directory. Default is '../Sv_zarr/'.",
     )
     parser.add_argument(
         "--encode-mode",
