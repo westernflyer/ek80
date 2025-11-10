@@ -28,7 +28,7 @@ import xarray as xr
 import utilities
 
 usagestr = """%(prog)s -h|--help
-       %(prog)s [--out-dir=OUT_DIR] [--ping-bin PING-BIN-SIZE] [--range-bin RANGE-BIN-SIZE] inputs ... 
+       %(prog)s [--out-dir=OUT_DIR] [--ping-bin=PING-BIN-SIZE] [--range-bin=RANGE-BIN-SIZE] inputs ... 
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
@@ -81,6 +81,9 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
             concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv], dim="ping_time")
         else:
             concat_ds_sv = ds_sv
+
+        # Before resampling or MVBS calculation
+        concat_ds_sv = concat_ds_sv.chunk({'ping_time': -1, 'range_sample': 'auto'})
 
         # Create a Resample object for subsampling into user-specified ping bins
         resampled_data = concat_ds_sv.resample(ping_time=ping_bin, skipna=True)

@@ -29,87 +29,14 @@ import xarray as xr
 from utilities import find_zarr_dirs
 
 usagestr = """%(prog)s -h|--help
-       %(prog)s [--ping-bin PING_BIN] [--range-bin RANGE_BIN] inputs ...
+       %(prog)s [--y-limit=Y-LIMIT] inputs ...
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=FutureWarning)
 
 
-def calc_mvbs(zarr_input_dirs: Iterable[Path] = None,
-              ping_bin: str = "1s",
-              range_bin: str = "0.5m") -> list[xr.Dataset]:
-    """
-    Calculate Mean Volume Backscattering Strength (MVBS) from Sv Zarr files.
-
-    This function processes a list of Sv Zarr files, resampling them into user-specified
-    ping and range bins, and then calculates the Mean Volume Backscattering Strength (MVBS).
-    It handles partial bins by carrying over remaining data to the next iteration. The computed
-    MVBS datasets are stored in memory and returned as a list.
-
-    Parameters:
-        zarr_input_dirs: List of Paths to the Sv Zarr directories to process.
-        ping_bin: String specification of the ping bin size for time resampling (e.g., "1s", "5s").
-        range_bin: String specification of the range bin size for depth resampling (e.g., "0.5m", "1m").
-
-    Returns:
-        List of xarray.Dataset objects, each containing the computed MVBS for a corresponding
-        Sv Zarr file or subset.
-    """
-
-    print(f"Subsampling into ping bins of size {ping_bin}, "
-          f"and range bins of size {range_bin}")
-
-    # Initialize leftover ds_Sv zarr as None
-    leftover_ds_sv = None
-
-    # Accumulate MVBS datasets in memory instead of writing to disk
-    mvbs_parts = []
-
-    # Iterate through all Sv Zarr Paths
-    for zarr_input_dir in zarr_input_dirs:
-
-        # Open ds_Sv from disk Zarr
-        print(f"Calculating MVBS from Sv file {zarr_input_dir}", flush=True)
-        ds_sv = xr.open_zarr(zarr_input_dir)
-
-        # Concat leftover Sv with current Sv
-        if leftover_ds_sv is not None:
-            concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv], dim="ping_time")
-        else:
-            concat_ds_sv = ds_sv
-
-        # Create a Resample object for subsampling into user-specified ping bins
-        resampled_data = concat_ds_sv.resample(ping_time=ping_bin, skipna=True)
-
-        # Determine the start index of the last incomplete bin
-        cutoff_index = max(group.start for group in resampled_data.groups.values())
-
-        # Split data into complete and incomplete bins:
-
-        # Take data up to the last complete bin
-        complete_bins_sv = concat_ds_sv.isel(ping_time=slice(0, cutoff_index))
-
-        # Keep remaining data for the next iteration
-        leftover_ds_sv = concat_ds_sv.isel(ping_time=slice(cutoff_index, -1))
-
-        print(f"Starting calculating MVBS for {zarr_input_dir}", flush=True)
-        # Compute MVBS on current subset
-        ds_mvbs = ep.commongrid.compute_MVBS(
-            complete_bins_sv,
-            range_var="depth",
-            range_bin=range_bin,
-            ping_time_bin=ping_bin,
-        )
-        print(f"Finished calculating MVBS for {zarr_input_dir}", flush=True)
-
-        # Accumulate MVBS in memory
-        mvbs_parts.append(ds_mvbs)
-
-    return mvbs_parts
-
-
-def plot(mvbs: list[xr.Dataset]):
+def plot(mvbs: Iterable[xr.Dataset], y_limit: float = 500):
     """
     Plots Mean Volume Backscattering Strength (MVBS) across multiple frequency channels.
 
@@ -119,17 +46,12 @@ def plot(mvbs: list[xr.Dataset]):
     depth with specified dB value ranges.
 
     Parameters:
-    mvbs : list[xr.Dataset]
-        List of xarray datasets representing computed MVBS data. Each dataset must share
+    mvbs : Iterable[xr.Dataset]
+        Iterable of xarray datasets representing computed MVBS data. Each dataset must share
         frequency and depth coordinates.
-
-    Raises:
-    RuntimeError
-        If no MVBS datasets are provided as input (i.e., `mvbs` is None or empty).
+    y_limit : float, optional
+        Y-axis limit for the plots in meters. Default is 500.
     """
-    if not mvbs:
-        raise RuntimeError(
-            "No MVBS datasets were computed. Check input Sv zarr files and resampling bins.")
 
     # Concatenate along ping_time; datasets share frequency/depth coords
     # Using data_vars='minimal' semantics is implicit in xr.concat for identical vars
@@ -142,7 +64,7 @@ def plot(mvbs: list[xr.Dataset]):
         .plot(x='ping_time', y='depth', yincrease=False, vmin=-80, vmax=-10)
     )
     plt.title("38 kHz")
-    plt.ylim(100, 0)  # Set y-axis from 0 to 100
+    plt.ylim(y_limit, 0)  # Set y-axis limits
     plt.show()
 
     print("Plot 200 kHz channel...", flush=True)
@@ -152,43 +74,42 @@ def plot(mvbs: list[xr.Dataset]):
         .plot(x='ping_time', y='depth', yincrease=False, vmin=-60, vmax=-10)
     )
     plt.title("200 kHz")
-    plt.ylim(100, 0)  # Set y-axis from 0 to 100
+    plt.ylim(y_limit, 0)  # Set y-axis limits
     plt.show()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Process and plot MVBS from Sv Zarr data.",
+        description="Plot MVBS data.",
         usage=usagestr,
     )
     parser.add_argument(
         "inputs",
         nargs="*",
-        help="Input Sv data directories in Zarr format. Can use glob patterns.",
+        help="Input MVBS data directories in Zarr format. Can use glob patterns.",
     )
     parser.add_argument(
-        "--ping-bin",
-        default="2s",
-        help="Ping bin size for MVBS computation. Default: 2s",
-    )
-    parser.add_argument(
-        "--range-bin",
-        default="0.5m",
-        help="Range bin size for MVBS computation. Default: 0.5m",
+        "--y-limit",
+        default=500,
+        type=float,
+        help="Y-axis limit in meters. Default is 500.",
     )
     return parser.parse_args()
 
 
+def gen_mvbs(mvbs_paths: Iterable[Path | str]) -> Iterable[xr.Dataset]:
+    for mvbs_path in mvbs_paths:
+        yield xr.open_zarr(mvbs_path)
+
 if __name__ == '__main__':
     args = parse_args()
-    sv_dirs = find_zarr_dirs(args.inputs)
+    mvbs_dirs = find_zarr_dirs(args.inputs)
 
-    if not sv_dirs:
-        print("No input Sv Zarr directories found.")
+    if not mvbs_dirs:
+        print("No input MVBS Zarr directories found.")
         print("Nothing done.")
         sys.exit(0)
+    print(f"Found {len(mvbs_dirs)} MVBS Zarr directories")
 
-    print(f"Found {len(sv_dirs)} Zarr directories")
-
-    mvbs = calc_mvbs(zarr_input_dirs=sv_dirs, ping_bin=args.ping_bin, range_bin=args.range_bin)
-    plot(mvbs=mvbs)
+    mvbs_iterable = gen_mvbs(mvbs_dirs)
+    plot(mvbs=mvbs_iterable, y_limit=args.y_limit)
