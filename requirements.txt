@@ -1,6 +1,8 @@
+# Use older versions of echopype and zarr. Otherwise, concatenations crash the app.
+echopype==0.10.1
+zarr>=2,<3
 bokeh
 dask
-echopype
 matplotlib
 notebook
 xarray[complete]

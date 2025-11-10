@@ -26,6 +26,7 @@ from typing import Iterable
 import echopype as ep
 from dask.distributed import Client
 
+from Explore import sv_bad
 from utilities import find_zarr_dirs
 
 usagestr = """%(prog)s -h|--help
@@ -35,16 +36,7 @@ usagestr = """%(prog)s -h|--help
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
-# Ignore large graph dask UserWarnings
 warnings.simplefilter("ignore", category=UserWarning)
-# Ignore UnstableSpecificationWarning. If the class is not directly importable, use a message filter
-try:
-    from zarr.errors import UnstableSpecificationWarning
-
-    warnings.simplefilter("ignore", category=UnstableSpecificationWarning)
-except ImportError:
-    warnings.filterwarnings("ignore", message=".*UnstableSpecificationWarning.*")
-
 
 def calc_all(zarr_dirs: Iterable[Path],
              out_dir: Path | str = "../Sv_zarr/",
@@ -60,16 +52,16 @@ def calc_all(zarr_dirs: Iterable[Path],
     open_and_save_futures = []
     for zarr_dir in zarr_dirs:
         # The directory where the Sv files will be saved
-        abs_out_dir = Path(zarr_dir).parent / Path(out_dir).expanduser()
+        sv_out_dir = Path(Path(zarr_dir).parent / out_dir).expanduser().resolve()
         # If it doesn't exist, make it
-        abs_out_dir.mkdir(parents=True, exist_ok=True)
+        sv_out_dir.mkdir(parents=True, exist_ok=True)
         # Where to save the Sv file
-        save_path = (abs_out_dir / f"{zarr_dir.stem}_Sv.zarr").resolve()
+        sv_path = (sv_out_dir / f"{zarr_dir.stem}_Sv.zarr").resolve()
         open_and_save_future = client.submit(
             calculate_sv,
             pure=False,
             zarr_dir=zarr_dir,
-            save_path=save_path,
+            save_path=sv_path,
             waveform_mode=waveform_mode,
             encode_mode=encode_mode,
             depth_offset=depth_offset
@@ -108,13 +100,13 @@ def calculate_sv(zarr_dir: Path,
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Calculate Sv from converted data in Zarr format using echopype.",
+        description="Calculate and save Sv from converted .zarr data",
         usage=usagestr, )
 
     parser.add_argument(
         "inputs",
         nargs="*",
-        help="Input Sv .zarr data directories in Zarr format. Can use glob patterns.",
+        help="Input converted ,zarr directories. Can use glob patterns.",
     )
     parser.add_argument(
         "--out-dir",
