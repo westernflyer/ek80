@@ -153,14 +153,14 @@ class S3Uploader:
         return stats
 
     def upload_files(self, files: Iterable[Path | str], s3_prefix: str = '',
-                     skip_existing: bool = True) -> dict:
+                     force_upload: bool = False) -> dict:
         """
         Upload a provided list of files to S3.
 
         Args:
             files: List of local file paths to upload
             s3_prefix: Prefix to add to all S3 keys (e.g., 'data/')
-            skip_existing: If True, skip files that already exist in S3
+            force_upload: If True, always upload files, even if they already exist in S3
 
         Returns:
             Dictionary with upload statistics
@@ -181,7 +181,7 @@ class S3Uploader:
             return {'uploaded': 0, 'skipped': 0, 'failed': 0}
 
         existing_files = set()
-        if skip_existing:
+        if not force_upload:
             existing_files = self.get_existing_files(prefix=s3_prefix)
 
         stats = {'uploaded': 0, 'skipped': 0, 'failed': 0}
@@ -193,7 +193,7 @@ class S3Uploader:
             # Use the file name under the provided prefix
             s3_key = f"{s3_prefix}{file_path.name}".replace('\\', '/')
 
-            if skip_existing and s3_key in existing_files:
+            if not force_upload and s3_key in existing_files:
                 print(f"○ Skipped (exists): {file_path.name}")
                 stats['skipped'] += 1
                 continue
@@ -235,17 +235,19 @@ class ProgressPercentage(object):
 
 # Example usage
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Upload specified files to an S3 bucket.")
-    parser.add_argument('files', nargs='+', help='List of file paths to upload')
+    parser = argparse.ArgumentParser(description="Upload specified files to an S3 bucket. "
+                                     "By default, skips files that already exist in the bucket.")
+    parser.add_argument('files', nargs='+',
+                        help='List of file paths to upload. Can use glob patterns.')
     parser.add_argument('--bucket', default='wff-archive',
                         help='S3 bucket name (default: wff-archive)')
     parser.add_argument('--prefix', default='data/raw/Western_Flyer/baja2025/ek80/',
-                        help='S3 key prefix to prepend to uploaded files (default: data/raw/Western_Flyer/baja2025/ek80/)')
+                        help='S3 key prefix to prepend to uploaded files '
+                             '(default: data/raw/Western_Flyer/baja2025/ek80/)')
     parser.add_argument('--region', default='us-west-2',
                         help='AWS region for the S3 client (default: us-west-2)')
-    parser.add_argument('--no-skip-existing', dest='skip_existing', action='store_false',
-                        help='Do not skip files that already exist in S3. Forces all files to be uploaded')
-    parser.set_defaults(skip_existing=True)
+    parser.add_argument('--force-upload', action='store_true',
+                        help='Force an upload, even if the file already exists in S3',)
 
     args = parser.parse_args()
 
@@ -256,7 +258,7 @@ if __name__ == "__main__":
     results = uploader.upload_files(
         files=files,
         s3_prefix=args.prefix,
-        skip_existing=args.skip_existing
+        force_upload=args.force_upload,
     )
 
     print(f"\nDone! Total uploaded: {results['uploaded']}")
