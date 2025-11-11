@@ -19,7 +19,7 @@ from typing import Iterable
 import echopype as ep
 from dask.distributed import Client
 
-from utilities import find_raw_files
+from utilities import find_files
 
 usagestr = """%(prog)s -h|--help
        %(prog)s [--out-dir=OUT_DIR] [--sonar-model={ek60|ek80}] [--no-swap] \\
@@ -148,7 +148,7 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    raw_files = find_raw_files(args.inputs)
+    raw_files = find_files(args.inputs)
 
     if not raw_files:
         print("No input .raw files found.")

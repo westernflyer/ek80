@@ -4,19 +4,18 @@ from pathlib import Path
 from typing import Iterable, List
 
 
-def find_raw_files(inputs: Iterable[str]) -> List[Path]:
+def find_files(inputs: Iterable[str]) -> List[Path]:
     """
-    Find and return a list of raw files from the given input paths. This function processes the
+    Find and return a list of files from the given input paths. This function processes the
     provided paths, expanding user home directories and environment variables, resolving glob
     patterns, and checking for valid file paths. It logs a warning for non-file or
     non-existent paths.
 
     Parameters:
-        inputs (Iterable[str]): An iterable of input paths or glob patterns to search for raw
-        files.
+        inputs (Iterable[str]): An iterable of input paths or glob patterns to search for files.
 
     Returns:
-        List[Path]: A sorted list of validated file paths.
+        List[Path]: A sorted list of validated Paths
     """
     seen = set()
     for inp in inputs:
