@@ -26,7 +26,6 @@ from typing import Iterable
 import echopype as ep
 from dask.distributed import Client
 
-from Explore import sv_bad
 from utilities import find_zarr_dirs
 
 usagestr = """%(prog)s -h|--help
