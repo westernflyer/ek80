@@ -96,61 +96,6 @@ class S3Uploader:
             print(f"✗ Error uploading {local_path.name}: {e}")
             return False
 
-    def upload_directory(self, local_dir: Path, s3_prefix: str = '',
-                         skip_existing: bool = True) -> dict:
-        """
-        Upload all files from a directory to S3, optionally skipping existing files.
-
-        Args:
-            local_dir: Path to local directory
-            s3_prefix: Prefix to add to all S3 keys (e.g., 'data/')
-            skip_existing: If True, skip files that already exist in S3
-
-        Returns:
-            Dictionary with upload statistics
-        """
-        if not local_dir.exists() or not local_dir.is_dir():
-            print(f"Directory not found: {local_dir}")
-            return {'uploaded': 0, 'skipped': 0, 'failed': 0}
-
-        # Get existing files if we want to skip them
-        existing_files = set()
-        if skip_existing:
-            existing_files = self.get_existing_files(prefix=s3_prefix)
-
-        # Get all files in directory (recursively)
-        files_to_upload = [f for f in local_dir.rglob('*') if f.is_file()]
-
-        stats = {'uploaded': 0, 'skipped': 0, 'failed': 0}
-
-        print(f"\nProcessing {len(files_to_upload)} files from {local_dir}")
-        print("-" * 60)
-
-        for file_path in files_to_upload:
-            # Create S3 key preserving directory structure
-            relative_path = file_path.relative_to(local_dir)
-            s3_key = f"{s3_prefix}{relative_path}".replace('\\', '/')
-
-            # Skip if file already exists
-            if skip_existing and s3_key in existing_files:
-                print(f"○ Skipped (exists): {relative_path}")
-                stats['skipped'] += 1
-                continue
-
-            # Upload the file
-            if self.upload_file(file_path, s3_key):
-                stats['uploaded'] += 1
-            else:
-                stats['failed'] += 1
-
-        # Print summary
-        print("-" * 60)
-        print(f"Summary:")
-        print(f"  Uploaded: {stats['uploaded']}")
-        print(f"  Skipped:  {stats['skipped']}")
-        print(f"  Failed:   {stats['failed']}")
-
-        return stats
 
     def upload_files(self, files: Iterable[Path | str], s3_prefix: str = '',
                      force_upload: bool = False) -> dict:
