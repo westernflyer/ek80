@@ -91,24 +91,16 @@ def calculate_sv(zarr_dir: Path,
     print(f"Calculating Sv from {zarr_dir}", flush=True)
     ed_zarr = ep.open_converted(zarr_dir)
 
-    # Some of the Zarr files can raise an AttributeError with a message: 'NoneType' object has no
-    # attribute 'sel'. Don't know why this is happening. Intercept the exception and skip
-    # the file
-    try:
-        # Calibrate backscatter measurement to Sv
-        ds_Sv = ep.calibrate.compute_Sv(ed_zarr, waveform_mode=waveform_mode,
-                                        encode_mode=encode_mode)
-    except AttributeError as e:
-        print(f"Error: {e}")
-        print(f"Skipping {zarr_dir}")
-        return
+    # Calibrate backscatter measurement to Sv
+    with ep.calibrate.compute_Sv(ed_zarr, waveform_mode=waveform_mode,
+                                 encode_mode=encode_mode) as ds_Sv:
 
-    # Add depth and location to the Sv dataset
-    ds_Sv = ep.consolidate.add_depth(ds_Sv, depth_offset=depth_offset)
-    ds_Sv = ep.consolidate.add_location(ds_Sv, ed_zarr, nmea_sentence="GGA")
+        # Add depth and location to the Sv dataset
+        ds_Sv = ep.consolidate.add_depth(ds_Sv, depth_offset=depth_offset)
+        ds_Sv = ep.consolidate.add_location(ds_Sv, ed_zarr, nmea_sentence="GGA")
 
-    # Save Sv dataset in Zarr format
-    ds_Sv.to_zarr(save_path, mode="w", consolidated=False)
+        # Save Sv dataset in Zarr format
+        ds_Sv.to_zarr(save_path, mode="w", consolidated=False)
     print(f"Saved Sv to {save_path}", flush=True)
 
 
@@ -182,10 +174,10 @@ if __name__ == '__main__':
         print("Nothing done.")
         sys.exit(0)
 
-    print(f"Found {len(zarr_dirs)} Zarr directories")
-    print(f"Using {args.workers} workers and {args.threads} threads per worker")
+    print(f"Found {len(zarr_dirs)} converted Zarr directories")
     if args.skip_existing:
         print(f"Skipping existing Sv files")
+    print(f"Using {args.workers} workers and {args.threads} threads per worker")
 
     start = time.time()
     calc_all(
