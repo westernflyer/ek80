@@ -37,6 +37,13 @@ usagestr = """%(prog)s -h|--help
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=UserWarning)
 
+# Suppress UnstableSpecificationWarning. If the class is not directly importable, use a message filter
+try:
+    from zarr.errors import UnstableSpecificationWarning
+    warnings.simplefilter("ignore", category=UnstableSpecificationWarning)
+except ImportError:
+    warnings.filterwarnings("ignore", message=".*UnstableSpecificationWarning.*")
+
 def calc_all(zarr_dirs: Iterable[Path],
              out_dir: Path | str = "../Sv_zarr/",
              encode_mode: str = "complex",
@@ -94,7 +101,7 @@ def calculate_sv(zarr_dir: Path,
     ds_Sv = ep.consolidate.add_location(ds_Sv, ed_zarr, nmea_sentence="GGA")
 
     # Save Sv dataset in Zarr format
-    ds_Sv.to_zarr(save_path, mode="w")
+    ds_Sv.to_zarr(save_path, mode="w", consolidated=False)
     print(f"Saved Sv to {save_path}", flush=True)
 
 
