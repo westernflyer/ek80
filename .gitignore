@@ -1,3 +1,5 @@
 ek80-venv
+.venv
+venv
 .idea
 .ipynb_checkpoints
