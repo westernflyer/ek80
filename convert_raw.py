@@ -70,21 +70,22 @@ def convert(raw_files: Iterable[Path],
     client = Client(n_workers=workers, threads_per_worker=threads)
     print("Dask Client Dashboard:", client.dashboard_link)
 
-    # The directory where the converted files will be saved
-    full_out_dir = Path(out_dir).expanduser()
-    # Make it if it doesn't exist
-    full_out_dir.mkdir(parents=True, exist_ok=True)
-
     # Parse `.raw` file and save to zarr format
     open_and_save_futures = []
     for raw_file in raw_files:
+        # The directory where the converted data will be saved
+        ed_dir = Path(Path(raw_file).parent / out_dir).expanduser().resolve()
+        # If it doesn't exist, make it
+        ed_dir.mkdir(parents=True, exist_ok=True)
+        # Where to save the converted data
+        ed_path = (ed_dir / f"{raw_file.stem}.zarr").resolve()
         open_and_save_future = client.submit(
             open_and_save,
             pure=False,
             raw_file=raw_file,
             sonar_model=sonar_model,
             use_swap=use_swap,
-            save_path=full_out_dir,
+            save_path=ed_path,
         )
         open_and_save_futures.append(open_and_save_future)
     client.gather(open_and_save_futures)
