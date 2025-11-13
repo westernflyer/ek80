@@ -28,7 +28,8 @@ import xarray as xr
 import utilities
 
 usagestr = """%(prog)s -h|--help
-       %(prog)s [--out-dir=OUT_DIR] [--ping-bin=PING-BIN-SIZE] [--range-bin=RANGE-BIN-SIZE] inputs ... 
+       %(prog)s [--out-dir=OUT_DIR] [--ping-bin=PING-BIN-SIZE] [--range-bin=RANGE-BIN-SIZE] \\
+       [--skip-existing] inputs ... 
 """
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
@@ -38,7 +39,8 @@ warnings.simplefilter("ignore", category=FutureWarning)
 def calc_and_save(sv_paths: Iterable[Path | str] = None,
                   out_dir: Path | str = "../MVBS_zarr/",
                   ping_bin: str = "5s",
-                  range_bin: str = "1.0m"):
+                  range_bin: str = "1.0m",
+                  skip_existing: bool = False,):
     """
     Calculate Mean Volume Backscattering Strength (MVBS) from Zarr hierarchies
     of Sv data, then save.
@@ -53,6 +55,7 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
         out_dir: Path to the output directory for saving MVBS.
         ping_bin: String specification of the ping bin size for time resampling (e.g., "1s", "5s").
         range_bin: String specification of the range bin size for depth resampling (e.g., "0.5m", "1m").
+        skip_existing: If True, skip existing MVBS files. Do not recalculate.
     """
 
     print(f"Subsampling into ping bins of size {ping_bin}, and range bins of size {range_bin}")
@@ -66,11 +69,15 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
 
         # The directory where the MVBS files will be saved
         mvbs_out_dir = Path(Path(sv_path).parent / out_dir).expanduser().resolve()
-        # If it doesn't exist, make it
-        mvbs_out_dir.mkdir(parents=True, exist_ok=True)
         # The path where the MVBS file will be saved
         mvbs_path = Path(mvbs_out_dir / sv_path.name.replace('_Sv.zarr',
                                                              '_MVBS.zarr')).resolve()
+        if skip_existing and mvbs_path.exists():
+            print(f"Skipping {mvbs_path} - already exists")
+            continue
+
+        # If the output directory doesn't exist, make it
+        mvbs_out_dir.mkdir(parents=True, exist_ok=True)
         print(f"MVBS will be saved to {mvbs_path}", flush=True)
 
         # Open ds_Sv from disk Zarr
@@ -139,6 +146,11 @@ def parse_args():
         default="1.0m",
         help="Bin size for range. Default: 1.0m",
     )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip existing MVBS files (default: False)",
+    )
     return parser.parse_args()
 
 
@@ -151,11 +163,11 @@ if __name__ == '__main__':
         sys.exit(0)
 
     print(f"Found {len(zarr_dirs)} Zarr directories")
-
-    print([str(z) for z in zarr_dirs])
+    if args.skip_existing:
+        print(f"Skipping existing MVBS files")
 
     start = time.time()
     calc_and_save(sv_paths=zarr_dirs, out_dir=args.out_dir, ping_bin=args.ping_bin,
-                  range_bin=args.range_bin)
+                  range_bin=args.range_bin, skip_existing=args.skip_existing)
     stop = time.time()
     print(f"Calculation completed in {stop - start:.2f} seconds")
