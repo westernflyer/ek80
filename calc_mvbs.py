@@ -4,7 +4,7 @@
 #    See the file LICENSE.txt for your rights.
 #
 """
-Given a deployment path, this script calculates MVBS for all Sv files.
+Given a set of deployment paths, this script calculates MVBS for all Sv files.
 
 This script reads Sv data in Zarr format, subsamples the data into ping and
 range bins, computes MVBS for each subsample, then concatenates the results.
@@ -16,6 +16,7 @@ Raises:
     RuntimeError: If no MVBS datasets are computed, indicating input files may be misconfigured.
 """
 import argparse
+import shutil
 import sys
 import time
 import warnings
@@ -65,6 +66,8 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
 
     # Iterate through all Sv Zarr Paths
     for sv_path in sv_paths:
+        # Normalize path
+        sv_path = Path(sv_path).expanduser().resolve()
         print(f"Calculating MVBS for Sv hierarchy {sv_path}", flush=True)
 
         # The directory where the MVBS files will be saved
@@ -78,46 +81,43 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
 
         # If the output directory doesn't exist, make it
         mvbs_out_dir.mkdir(parents=True, exist_ok=True)
-        print(f"MVBS will be saved to {mvbs_path}", flush=True)
 
         # Open ds_Sv from disk Zarr
-        ds_sv = xr.open_zarr(sv_path)
+        with xr.open_zarr(sv_path, consolidated=False) as ds_sv:
 
-        # Concat leftover Sv with current Sv
-        if leftover_ds_sv:
-            concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv], dim="ping_time")
-        else:
-            concat_ds_sv = ds_sv
+            # Concat leftover Sv with current Sv
+            if leftover_ds_sv:
+                concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv], dim="ping_time")
+            else:
+                concat_ds_sv = ds_sv
 
-        # Before resampling or MVBS calculation
-        concat_ds_sv = concat_ds_sv.chunk({'ping_time': -1, 'range_sample': 'auto'})
+            # Before resampling or MVBS calculation
+            # concat_ds_sv = concat_ds_sv.chunk({'ping_time': -1, 'range_sample': 'auto'})
 
-        # Create a Resample object for subsampling into user-specified ping bins
-        resampled_data = concat_ds_sv.resample(ping_time=ping_bin, skipna=True)
+            # Create a Resample object for subsampling into user-specified ping bins
+            resampled_data = concat_ds_sv.resample(ping_time=ping_bin, skipna=True)
 
-        # Determine the start index of the last incomplete bin
-        cutoff_index = max(group.start for group in resampled_data.groups.values())
+            # Determine the start index of the last incomplete bin
+            cutoff_index = max(group.start for group in resampled_data.groups.values())
 
-        # Split data into complete and incomplete bins:
+            # Split data into complete and leftover bins.
+            # Take data up to the last complete bin
+            complete_bins_sv = concat_ds_sv.isel(ping_time=slice(0, cutoff_index))
 
-        # Take data up to the last complete bin
-        complete_bins_sv = concat_ds_sv.isel(ping_time=slice(0, cutoff_index))
+            # Keep remaining data for the next iteration
+            leftover_ds_sv = concat_ds_sv.isel(ping_time=slice(cutoff_index, -1))
 
-        # Keep remaining data for the next iteration
-        leftover_ds_sv = concat_ds_sv.isel(ping_time=slice(cutoff_index, -1))
+            print(f"Starting calculating MVBS for {sv_path}", flush=True)
+            # Compute MVBS on current subset
+            with ep.commongrid.compute_MVBS(complete_bins_sv, range_var="depth",
+                                            range_bin=range_bin, ping_time_bin=ping_bin,) as ds_mvbs:
+                print(f"Finished calculating MVBS for {sv_path}", flush=True)
 
-        print(f"Starting calculating MVBS for {sv_path}", flush=True)
-        # Compute MVBS on current subset
-        ds_mvbs = ep.commongrid.compute_MVBS(
-            complete_bins_sv,
-            range_var="depth",
-            range_bin=range_bin,
-            ping_time_bin=ping_bin,
-        )
-        print(f"Finished calculating MVBS for {sv_path}", flush=True)
-
-        ds_mvbs.to_zarr(mvbs_path, mode="w")
-        print(f"Saved MVBS to {mvbs_path}", flush=True)
+                # Remove the existing MVBS data if they exist
+                shutil.rmtree(mvbs_path, ignore_errors=True)
+                # Then save
+                ds_mvbs.to_zarr(mvbs_path, mode="w")
+                print(f"Saved MVBS to {mvbs_path}", flush=True)
 
 
 def parse_args():
@@ -162,7 +162,7 @@ if __name__ == '__main__':
         print("Nothing done.")
         sys.exit(0)
 
-    print(f"Found {len(zarr_dirs)} Zarr directories")
+    print(f"Found {len(zarr_dirs)} Sv Zarr directories")
     if args.skip_existing:
         print(f"Skipping existing MVBS files")
 
