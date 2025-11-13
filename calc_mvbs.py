@@ -24,6 +24,7 @@ from typing import Iterable
 
 import echopype as ep
 import xarray as xr
+from dask.distributed import Client
 
 import utilities
 
@@ -36,11 +37,13 @@ warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=FutureWarning)
 
 
-def calc_and_save(sv_paths: Iterable[Path | str] = None,
-                  out_dir: Path | str = "../MVBS_zarr/",
-                  ping_bin: str = "5s",
-                  range_bin: str = "1.0m",
-                  skip_existing: bool = False,):
+def calc_all(sv_paths: Iterable[Path | str] = None,
+             out_dir: Path | str = "../MVBS_zarr/",
+             ping_bin: str = "5s",
+             range_bin: str = "1.0m",
+             skip_existing: bool = False,
+             workers=4,
+             threads=2, ):
     """
     Calculate Mean Volume Backscattering Strength (MVBS) from Zarr hierarchies
     of Sv data, then save.
@@ -56,17 +59,17 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
         ping_bin: String specification of the ping bin size for time resampling (e.g., "1s", "5s").
         range_bin: String specification of the range bin size for depth resampling (e.g., "0.5m", "1m").
         skip_existing: If True, skip existing MVBS files. Do not recalculate.
+        workers: Number of workers for Dask Client.
+        threads: Number of threads per worker.
     """
 
     print(f"Subsampling into ping bins of size {ping_bin}, and range bins of size {range_bin}")
 
-    # Initialize leftover ds_Sv zarr as None
-    leftover_ds_sv = None
+    client = Client(n_workers=workers, threads_per_worker=threads)
+    print("Dask Client Dashboard:", client.dashboard_link)
 
-    # Iterate through all Sv Zarr Paths
+    open_and_save_futures = []
     for sv_path in sv_paths:
-        print(f"Calculating MVBS for Sv hierarchy {sv_path}", flush=True)
-
         # The directory where the MVBS files will be saved
         mvbs_out_dir = Path(Path(sv_path).parent / out_dir).expanduser().resolve()
         # The path where the MVBS file will be saved
@@ -78,46 +81,34 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
 
         # If the output directory doesn't exist, make it
         mvbs_out_dir.mkdir(parents=True, exist_ok=True)
-        print(f"MVBS will be saved to {mvbs_path}", flush=True)
 
-        # Open ds_Sv from disk Zarr
-        ds_sv = xr.open_zarr(sv_path)
-
-        # Concat leftover Sv with current Sv
-        if leftover_ds_sv:
-            concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv], dim="ping_time")
-        else:
-            concat_ds_sv = ds_sv
-
-        # Before resampling or MVBS calculation
-        concat_ds_sv = concat_ds_sv.chunk({'ping_time': -1, 'range_sample': 'auto'})
-
-        # Create a Resample object for subsampling into user-specified ping bins
-        resampled_data = concat_ds_sv.resample(ping_time=ping_bin, skipna=True)
-
-        # Determine the start index of the last incomplete bin
-        cutoff_index = max(group.start for group in resampled_data.groups.values())
-
-        # Split data into complete and incomplete bins:
-
-        # Take data up to the last complete bin
-        complete_bins_sv = concat_ds_sv.isel(ping_time=slice(0, cutoff_index))
-
-        # Keep remaining data for the next iteration
-        leftover_ds_sv = concat_ds_sv.isel(ping_time=slice(cutoff_index, -1))
-
-        print(f"Starting calculating MVBS for {sv_path}", flush=True)
-        # Compute MVBS on current subset
-        ds_mvbs = ep.commongrid.compute_MVBS(
-            complete_bins_sv,
-            range_var="depth",
+        open_and_save_future = client.submit(
+            calculate_mvbs,
+            pure=False,
+            sv_path=sv_path,
+            mvbs_path=mvbs_path,
+            ping_bin=ping_bin,
             range_bin=range_bin,
-            ping_time_bin=ping_bin,
         )
-        print(f"Finished calculating MVBS for {sv_path}", flush=True)
+        open_and_save_futures.append(open_and_save_future)
+    client.gather(open_and_save_futures)
 
-        ds_mvbs.to_zarr(mvbs_path, mode="w")
-        print(f"Saved MVBS to {mvbs_path}", flush=True)
+
+def calculate_mvbs(sv_path, mvbs_path, ping_bin, range_bin, leftover_ds_sv=None):
+    print(f"Starting calculating MVBS for {sv_path}", flush=True)
+    ds_sv = xr.open_zarr(sv_path)
+
+    # Compute MVBS on current subset
+    ds_mvbs = ep.commongrid.compute_MVBS(
+        ds_sv,
+        range_var="depth",
+        range_bin=range_bin,
+        ping_time_bin=ping_bin,
+    )
+    print(f"Finished calculating MVBS for {sv_path}", flush=True)
+
+    ds_mvbs.to_zarr(mvbs_path, mode="w")
+    print(f"Saved MVBS to {mvbs_path}", flush=True)
 
 
 def parse_args():
@@ -167,7 +158,7 @@ if __name__ == '__main__':
         print(f"Skipping existing MVBS files")
 
     start = time.time()
-    calc_and_save(sv_paths=zarr_dirs, out_dir=args.out_dir, ping_bin=args.ping_bin,
-                  range_bin=args.range_bin, skip_existing=args.skip_existing)
+    calc_all(sv_paths=zarr_dirs, out_dir=args.out_dir, ping_bin=args.ping_bin,
+             range_bin=args.range_bin, skip_existing=args.skip_existing)
     stop = time.time()
     print(f"Calculation completed in {stop - start:.2f} seconds")
