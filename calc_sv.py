@@ -12,9 +12,8 @@ calibration parameters such as encoding mode, waveform mode, and depth offset.
 
 Through experimentation, I have found a configuration with 4 workers, 2 threads per worker,
 works best on my 4-core, 8-thread NUC. Even so, expect to get fatal
-"asyncio.exceptions.CancelledError" exceptions after processing 60-80 files. For this reason,
-use the script "calc_missing_sv.py" to calculate missing Sv files and expect to keep restarting
-it.
+"asyncio.exceptions.CancelledError" exceptions after processing 60-80 files. Re-run, but use the
+option --skip-existing to avoid re-processing existing files.
 """
 import argparse
 import sys
