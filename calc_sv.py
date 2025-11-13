@@ -89,8 +89,9 @@ def calculate_sv(zarr_dir: Path,
         print(f"Skipping {zarr_dir}")
         return
 
-    # Add depth to the Sv dataset
+    # Add depth and location to the Sv dataset
     ds_Sv = ep.consolidate.add_depth(ds_Sv, depth_offset=depth_offset)
+    ds_Sv = ep.consolidate.add_location(ds_Sv, ed_zarr, nmea_sentence="GGA")
 
     # Save Sv dataset in Zarr format
     ds_Sv.to_zarr(save_path, mode="w")
