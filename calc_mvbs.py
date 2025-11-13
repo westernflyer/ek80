@@ -25,7 +25,6 @@ from typing import Iterable
 
 import echopype as ep
 import xarray as xr
-from dask.distributed import Client
 
 import utilities
 
@@ -43,8 +42,7 @@ def calc_all(sv_paths: Iterable[Path | str] = None,
              ping_bin: str = "5s",
              range_bin: str = "1.0m",
              skip_existing: bool = False,
-             workers=4,
-             threads=2, ):
+             ):
     """
     Calculate Mean Volume Backscattering Strength (MVBS) from Zarr hierarchies
     of Sv data, then save.
@@ -60,14 +58,9 @@ def calc_all(sv_paths: Iterable[Path | str] = None,
         ping_bin: String specification of the ping bin size for time resampling (e.g., "1s", "5s").
         range_bin: String specification of the range bin size for depth resampling (e.g., "0.5m", "1m").
         skip_existing: If True, skip existing MVBS files. Do not recalculate.
-        workers: Number of workers for Dask Client.
-        threads: Number of threads per worker.
     """
 
     print(f"Subsampling into ping bins of size {ping_bin}, and range bins of size {range_bin}")
-
-    client = Client(n_workers=workers, threads_per_worker=threads)
-    print("Dask Client Dashboard:", client.dashboard_link)
 
     open_and_save_futures = []
     for sv_path in sv_paths:
@@ -85,19 +78,15 @@ def calc_all(sv_paths: Iterable[Path | str] = None,
         # If the output directory doesn't exist, make it
         mvbs_out_dir.mkdir(parents=True, exist_ok=True)
 
-        open_and_save_future = client.submit(
-            calculate_mvbs,
-            pure=False,
+        calculate_and_save_mvbs(
             sv_path=sv_path,
             mvbs_path=mvbs_path,
             ping_bin=ping_bin,
             range_bin=range_bin,
         )
-        open_and_save_futures.append(open_and_save_future)
-    client.gather(open_and_save_futures)
 
 
-def calculate_mvbs(sv_path, mvbs_path, ping_bin, range_bin):
+def calculate_and_save_mvbs(sv_path, mvbs_path, ping_bin, range_bin):
     ds_sv = xr.open_zarr(sv_path, consolidated=False)
     try:
         print(f"Starting calculating MVBS for {sv_path}", flush=True)
@@ -153,21 +142,6 @@ def parse_args():
         action="store_true",
         help="Skip existing MVBS files (default: False)",
     )
-    parser.add_argument(
-        "--workers",
-        dest="workers",
-        type=int,
-        default=4,
-        help="Number of workers for Dask Client (default: 4)",
-    )
-    parser.add_argument(
-        "--threads",
-        dest="threads",
-        type=int,
-        default=2,
-        help="Number of threads per worker (default: 2)",
-    )
-
     return parser.parse_args()
 
 
@@ -182,7 +156,6 @@ if __name__ == '__main__':
     print(f"Found {len(zarr_dirs)} Sv Zarr directories")
     if args.skip_existing:
         print(f"Skipping existing MVBS files")
-    print(f"Using {args.workers} workers and {args.threads} threads per worker")
 
     start = time.time()
     calc_all(sv_paths=zarr_dirs,
@@ -190,7 +163,6 @@ if __name__ == '__main__':
              ping_bin=args.ping_bin,
              range_bin=args.range_bin,
              skip_existing=args.skip_existing,
-             workers=args.workers,
-             threads=args.threads, )
+             )
     stop = time.time()
     print(f"Calculation completed in {stop - start:.2f} seconds")
