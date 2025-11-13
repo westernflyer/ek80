@@ -16,6 +16,7 @@ Raises:
     RuntimeError: If no MVBS datasets are computed, indicating input files may be misconfigured.
 """
 import argparse
+import shutil
 import sys
 import time
 import warnings
@@ -70,6 +71,8 @@ def calc_all(sv_paths: Iterable[Path | str] = None,
 
     open_and_save_futures = []
     for sv_path in sv_paths:
+        # Normalize path
+        sv_path = Path(sv_path).expanduser().resolve()
         # The directory where the MVBS files will be saved
         mvbs_out_dir = Path(Path(sv_path).parent / out_dir).expanduser().resolve()
         # The path where the MVBS file will be saved
@@ -94,21 +97,29 @@ def calc_all(sv_paths: Iterable[Path | str] = None,
     client.gather(open_and_save_futures)
 
 
-def calculate_mvbs(sv_path, mvbs_path, ping_bin, range_bin, leftover_ds_sv=None):
-    print(f"Starting calculating MVBS for {sv_path}", flush=True)
-    ds_sv = xr.open_zarr(sv_path)
-
-    # Compute MVBS on current subset
-    ds_mvbs = ep.commongrid.compute_MVBS(
-        ds_sv,
-        range_var="depth",
-        range_bin=range_bin,
-        ping_time_bin=ping_bin,
-    )
-    print(f"Finished calculating MVBS for {sv_path}", flush=True)
-
-    ds_mvbs.to_zarr(mvbs_path, mode="w")
+def calculate_mvbs(sv_path, mvbs_path, ping_bin, range_bin):
+    ds_sv = xr.open_zarr(sv_path, consolidated=False)
+    try:
+        print(f"Starting calculating MVBS for {sv_path}", flush=True)
+        # Compute MVBS and save it
+        ds_mvbs = ep.commongrid.compute_MVBS(
+            ds_sv,
+            range_var="depth",
+            range_bin=range_bin,
+            ping_time_bin=ping_bin,
+        )
+        print(f"Finished calculating MVBS for {sv_path}", flush=True)
+    except ValueError as e:
+        print(f"Error calculating MVBS for {sv_path}: {e}")
+        raise
+    # Remove the directory first:
+    shutil.rmtree(mvbs_path, ignore_errors=True)
+    # Now save the MVBS dataset
+    ds_mvbs.to_zarr(mvbs_path, mode="w", consolidated=False)
     print(f"Saved MVBS to {mvbs_path}", flush=True)
+    # clean up
+    ds_mvbs.close()
+    ds_sv.close()
 
 
 def parse_args():
@@ -142,6 +153,21 @@ def parse_args():
         action="store_true",
         help="Skip existing MVBS files (default: False)",
     )
+    parser.add_argument(
+        "--workers",
+        dest="workers",
+        type=int,
+        default=4,
+        help="Number of workers for Dask Client (default: 4)",
+    )
+    parser.add_argument(
+        "--threads",
+        dest="threads",
+        type=int,
+        default=2,
+        help="Number of threads per worker (default: 2)",
+    )
+
     return parser.parse_args()
 
 
@@ -153,12 +179,18 @@ if __name__ == '__main__':
         print("Nothing done.")
         sys.exit(0)
 
-    print(f"Found {len(zarr_dirs)} Zarr directories")
+    print(f"Found {len(zarr_dirs)} Sv Zarr directories")
     if args.skip_existing:
         print(f"Skipping existing MVBS files")
+    print(f"Using {args.workers} workers and {args.threads} threads per worker")
 
     start = time.time()
-    calc_all(sv_paths=zarr_dirs, out_dir=args.out_dir, ping_bin=args.ping_bin,
-             range_bin=args.range_bin, skip_existing=args.skip_existing)
+    calc_all(sv_paths=zarr_dirs,
+             out_dir=args.out_dir,
+             ping_bin=args.ping_bin,
+             range_bin=args.range_bin,
+             skip_existing=args.skip_existing,
+             workers=args.workers,
+             threads=args.threads, )
     stop = time.time()
     print(f"Calculation completed in {stop - start:.2f} seconds")
