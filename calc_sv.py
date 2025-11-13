@@ -30,7 +30,7 @@ from utilities import find_zarr_dirs
 
 usagestr = """%(prog)s -h|--help
        %(prog)s [--out-dir=OUT_DIR] [--encode-mode={complex|power}] [--depth-offset=OFFSET] \\
-                  [--waveform-mode={CW,BB}] [--workers=WORKERS] [--threads=THREADS]\\
+                  [--waveform-mode={CW,BB}] [--skip-existing] [--workers=WORKERS] [--threads=THREADS]\\
                   inputs ...
 """
 
@@ -40,14 +40,17 @@ warnings.simplefilter("ignore", category=UserWarning)
 # Suppress UnstableSpecificationWarning. If the class is not directly importable, use a message filter
 try:
     from zarr.errors import UnstableSpecificationWarning
+
     warnings.simplefilter("ignore", category=UnstableSpecificationWarning)
 except ImportError:
     warnings.filterwarnings("ignore", message=".*UnstableSpecificationWarning.*")
+
 
 def calc_all(zarr_dirs: Iterable[Path],
              out_dir: Path | str = "../Sv_zarr/",
              encode_mode: str = "complex",
              depth_offset: float | int = 1,
+             skip_existing: bool = True,
              waveform_mode: str = "CW",
              workers=4,
              threads=2):
@@ -59,10 +62,15 @@ def calc_all(zarr_dirs: Iterable[Path],
     for zarr_dir in zarr_dirs:
         # The directory where the Sv files will be saved
         sv_out_dir = Path(Path(zarr_dir).parent / out_dir).expanduser().resolve()
-        # If it doesn't exist, make it
-        sv_out_dir.mkdir(parents=True, exist_ok=True)
         # Where to save the Sv file
         sv_path = (sv_out_dir / f"{zarr_dir.stem}_Sv.zarr").resolve()
+        if skip_existing and sv_path.exists():
+            print(f"Skipping {sv_path} - already exists")
+            continue
+
+        # If the output directory doesn't exist, make it
+        sv_out_dir.mkdir(parents=True, exist_ok=True)
+
         open_and_save_future = client.submit(
             calculate_sv,
             pure=False,
@@ -144,6 +152,11 @@ def parse_args():
         help="Waveform mode for calibration (default: CW)",
     )
     parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip existing Sv files (default: False)",
+    )
+    parser.add_argument(
         "--workers",
         dest="workers",
         type=int,
@@ -172,6 +185,8 @@ if __name__ == '__main__':
 
     print(f"Found {len(zarr_dirs)} Zarr directories")
     print(f"Using {args.workers} workers and {args.threads} threads per worker")
+    if args.skip_existing:
+        print(f"Skipping existing Sv files")
 
     start = time.time()
     calc_all(
@@ -179,6 +194,7 @@ if __name__ == '__main__':
         out_dir=args.out_dir,
         encode_mode=args.encode_mode,
         depth_offset=args.depth_offset,
+        skip_existing=args.skip_existing,
         waveform_mode=args.waveform_mode,
         workers=args.workers,
         threads=args.threads,
