@@ -35,6 +35,8 @@ usagestr = """%(prog)s -h|--help
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=FutureWarning)
+# Suppress Zarr warnings about opening data with unknown metadata consolidation
+warnings.simplefilter("ignore", category=RuntimeWarning)
 
 
 def calc_and_save(sv_paths: Iterable[Path | str] = None,
