@@ -7,119 +7,101 @@ collected by Simrad echosounders, using the library
 [echopype](https://github.com/OSOceanAcoustics/echopype). All data is stored
 using the [Zarr format](https://zarr.dev/).
 
-The repository consists of 3 scripts, which make up a data processing pipeline:
+The repository consists of 4 scripts, which make up a data processing pipeline:
 
-- `convert_raw.py`: convert raw data (`.raw`) that was collected by the echosounder
-   into Zarr format, then save it to disk;
+- `convert_raw.py`: convert raw data (`.raw`) that was collected by the
+  echosounder into Zarr format, then save it to disk;
 - `calc_sv.py`: Using the converted files, calculate Sv (volume
   backscattering strength) and save it to disk;
-- `plot_mvbs.py`: Read the Sv data, calculate MVBS, then plot the results.
+- `calc_mvbs.py`: Using the Sv data, calculate Mean Volume Backscattering
+  Strength (MVBS) and save it to disk;
+- `plot_mvbs.py`: Read MVBS data, then plot the results.
 
 ## Requirements
 
-Python 3.10-3.12. This requirement is due to echopype. 
+Python 3.12 or 3.13. This requirement is due to echopype. As of 11/14/2025,
+Python 3.14 does not work because the virtual environment does not build
+properly.
 
-## Data structure
+Package `echopype` v0.11 or later. Version 0.10 does not include some functions
+that these scripts use.
 
-Although it is not required, the processing pipeline works most efficiently if
-the data directory structure is organized in the following way:
+Zarr version 3 or later is required because that is the only version that
+`echopype` v0.11 supports.
 
-```aiignore
-/path/to/root-id
-    raw
-        idstamp1.raw
-        idstamp2.raw
-        ...
-    converted
-        idstamp1.zarr
-        idstamp2.zarr
-        ...
-    sv
-        idstamp1.sv
-        idstamp2.sv
-        ...
+## Workflow
+
+### Directory structure
+
+Assuming that the raw echosounder data lies in `~/Data/ek80`, following the
+workflow outlined below will result in the following directory
+structure:
+
 ```
-
-where `root-id` is a unique identifier for a particular deployment of the
-echosounder. This is typically the date and time of the deployment.
-
-- The directory `/path/to/root-id` is the root directory for the deployment;
-- The directory `raw` contains the raw data files (`.raw`), as downloaded from the
-  echosounder;
-- The directory `converted` contains the converted data as converted 
-  by `convert_raw`;
-- The directory `sv` contains the Sv data as calculated by `calc_sv`.
-
-The scripts are set up such that when used with the `--root-dir` option, the
-output of one script is easily used as input for the next.
-
-Here's an example of a typical directory structure:
-```aiignore
-/home/ek80/250416WF/
-├── raw
-│   ├── 250416WF-D20250416-T191232.raw
-│   ├── 250416WF-D20250416-T191355.raw
-│   ├── 250416WF-D20250416-T191516.raw
-│   ├── ...
-├── converted
+~/Data/ek80/
+├── 250416WF-D20250416-T191232.raw
+├── 250416WF-D20250416-T191355.raw
+├── 250416WF-D20250416-T191516.raw
+├── ...
+├── echodata_zarr
 │   ├── 250416WF-D20250416-T191232.zarr
 │   ├── 250416WF-D20250416-T191355.zarr
 │   ├── 250416WF-D20250416-T191516.zarr
 │   ├── ...
-└── sv
-    ├── 250416WF-D20250416-T191232.sv
-    ├── 250416WF-D20250416-T191355.sv
-    ├── 250416WF-D20250416-T191516.sv
-    ├── ...
+└── Sv_zarr
+│   ├── 250416WF-D20250416-T191232_Sv.zarr
+│   ├── 250416WF-D20250416-T191355_Sv.zarr
+│   ├── 250416WF-D20250416-T191516_Sv.zarr
+│   ├── ...
+└── MVBS_zarr
+│   ├── 250416WF-D20250416-T191232_MVBS.zarr
+│   ├── 250416WF-D20250416-T191355_MVBS.zarr
+│   ├── 250416WF-D20250416-T191516_MVBS.zarr
+│   ├── ...
 ```
 
-Here, `250416WF` is `root-id`, the unique identifier for the deployment. The
-path `/home/ek80/250416WF/` is the root directory, and would be used as the
-value for the `--root-dir` option.
-
-## Workflow
-
-### Set up virtual environment
+### Set up a virtual environment
 
 ```shell
-python -m venv venv
-source venv/bin/activate
+python -m venv ek80-venv
+source ek80-venv/bin/activate
 pip install -r requirements.txt
 ```
 
 ### Convert raw data and save in Zarr format
 
-Assume that the root directory is `/home/ek80/250416WF/`. Then the
-raw files should be in directory `/home/ek80/250416WF/raw/`. The
-following would then convert them all to Zarr format, putting the results in the
-directory `/home/ek80/250416WF/converted/`:
+Assuming that the raw data is stored in `~/Data/ek80`, this would convert it
+all and put it in `~/Data/ek80/echodata_zarr`:
 
 ```shell
-python3 -m convert_raw --root-dir=/home/ek80/250416WF/
+python3 -m convert_raw ~/Data/ek80/*.raw
 ```
-
 
 ### Calculate Sv
 
-To calculate Sv from the results of the previous step, run:
+This would calculate Sv from the results of the previous step and put it in
+`~/Data/ek80/Sv_zarr`:
 
 ```shell
-python3 -m calc_sv --root-dir=/home/ek80/250416WF/
+python3 -m calc_sv ~/Data/ek80/Sv_zarr/*.zarr
 ```
 
-Note that this uses the same `--root-dir` option as the previous step. The
-results are saved in the directory `/home/ek80/250416WF/sv/`.
+### Calculate MVBS
+
+This would calculate MVBS from the results of the previous step and put it in
+`~/Data/ek80/MVBS_zarr`:
+
+```shell
+python3 -m calc_mvbs ~/Data/ek80/MVBS_zarr/*.zarr
+```
 
 ### Plot MVBS
 
-Finally, using the results from the previous step, plot the MVBS:
+Finally, select a day and plot it. For example, for 2025-Apr-30:
 
 ```shell
-python3 -m plot_mvbs --root-dir=/home/ek80/250416WF/
+python3 -m plot_mvbs  ~/Data/ek80/MVBS_zarr/250430WF*.zarr
 ```
-
-Again, note that this uses the same `--root-dir` option as the previous step.
-
 
 # Copyright
 
