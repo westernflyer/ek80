@@ -1,11 +1,6 @@
-# Use older versions of echopype and zarr when doing concatenations:
-#echopype==0.10.1
-#zarr>=2,<3
-
-# Otherwise, use the modern versions:
-echopype
+# We need echopype v0.11 because it has bottom depth detection and other goodies.
+echopype>=0.11
 zarr
-
 boto3
 bokeh
 dask
