@@ -22,7 +22,6 @@ import warnings
 from pathlib import Path
 from typing import Iterable
 
-import echopype as ep
 import matplotlib.pyplot as plt
 import xarray as xr
 
@@ -60,8 +59,8 @@ def plot(mvbs: Iterable[xr.Dataset], y_limit: float = 500):
     print("Plot 38 kHz channel...", flush=True)
     (
         ds_mvbs["Sv"]
-        .isel(channel=0)  # Select a channel. Channel 0 is 38 kHz
-        .plot(x='ping_time', y='depth', yincrease=False, vmin=-80, vmax=-10)
+        .sel(channel='WBT Mini 278014-7 ES38-18|200-18C_ES')  # Select 38 kHz channel
+        .plot(x='ping_time', y='depth', yincrease=False, vmin=-75, vmax=-55)
     )
     plt.title("38 kHz")
     plt.ylim(y_limit, 0)  # Set y-axis limits
@@ -70,8 +69,8 @@ def plot(mvbs: Iterable[xr.Dataset], y_limit: float = 500):
     print("Plot 200 kHz channel...", flush=True)
     (
         ds_mvbs["Sv"]
-        .isel(channel=1)  # Select a channel. Channel 1 is 200 k
-        .plot(x='ping_time', y='depth', yincrease=False, vmin=-60, vmax=-10)
+        .sel(channel='WBT Mini 278014-8 ES38-18|200-18C_ES')  # Select 200 kHz channel
+        .plot(x='ping_time', y='depth', yincrease=False)
     )
     plt.title("200 kHz")
     plt.ylim(y_limit, 0)  # Set y-axis limits
