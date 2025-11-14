@@ -85,6 +85,11 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
         # Open ds_Sv from disk Zarr
         with xr.open_zarr(sv_path, consolidated=False) as ds_sv:
 
+            # Variable "water_level" uses dimension "time1", which we otherwise don't use. It
+            # varies over the dataset, which can cause alignment problems when concatenating the
+            # leftovers. Drop it.
+            ds_sv = ds_sv.drop_vars("water_level")
+
             # Concat leftover Sv with current Sv
             if leftover_ds_sv:
                 concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv], dim="ping_time")
