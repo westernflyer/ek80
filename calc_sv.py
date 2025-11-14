@@ -91,11 +91,15 @@ def calculate_sv(zarr_dir: Path,
     print(f"Calculating Sv from {zarr_dir}", flush=True)
     ed_zarr = ep.open_converted(zarr_dir)
 
+    # Use only GGA sentences. This avoids errors involving duplicate timestamps.
+    ed_zarr["Platform"] = ed_zarr["Platform"].where(
+        (ed_zarr["Platform"]["sentence_type"] == "GGA"), drop=True)
+
     # Some of the Zarr files can raise an AttributeError with a message: 'NoneType' object has no
     # attribute 'sel'. Don't know why this is happening. Intercept the exception and skip
     # the file
     try:
-        # Calibrate backscatter measurement to Sv
+        # Compute Sv
         ds_Sv = ep.calibrate.compute_Sv(ed_zarr, waveform_mode=waveform_mode,
                                         encode_mode=encode_mode)
     except AttributeError as e:
@@ -103,7 +107,7 @@ def calculate_sv(zarr_dir: Path,
         print(f"Skipping {zarr_dir}")
         return
 
-    # Add depth and location to the Sv dataset
+    # Add depth and location to the Sv dataset without errors
     ds_Sv = ep.consolidate.add_depth(ds_Sv, depth_offset=depth_offset)
     ds_Sv = ep.consolidate.add_location(ds_Sv, ed_zarr, nmea_sentence="GGA")
 
