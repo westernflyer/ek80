@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Iterable
 
 import echopype as ep
+import echopype.qc
 from dask.distributed import Client
 
 from utilities import find_files
@@ -33,9 +34,11 @@ warnings.simplefilter("ignore", category=UserWarning)
 # Ignore UnstableSpecificationWarning. If the class is not directly importable, use a message filter
 try:
     from zarr.errors import UnstableSpecificationWarning
+
     warnings.simplefilter("ignore", category=UnstableSpecificationWarning)
 except ImportError:
     warnings.filterwarnings("ignore", message=".*UnstableSpecificationWarning.*")
+
 
 def convert(raw_files: Iterable[Path],
             out_dir: Path | str = "./echodata_zarr/",
@@ -99,6 +102,11 @@ def open_and_save(raw_file, sonar_model, use_swap, save_path):
         sonar_model=sonar_model,
         use_swap=use_swap,
     )
+    # Fix any time glitches in the NMEA data
+    if echopype.qc.exist_reversed_time(ed['Platform'], "time1"):
+        # Coerce increasing time
+        echopype.qc.coerce_increasing_time(ed['Platform'])
+
     ed.to_zarr(save_path, overwrite=True)
 
 
