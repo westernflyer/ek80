@@ -43,9 +43,10 @@ except ImportError:
 def convert(raw_files: Iterable[Path],
             out_dir: Path | str = "./echodata_zarr/",
             sonar_model: str = "ek80",
+            skip_existing: bool = False,
             use_swap: bool = True,
-            workers=4,
-            threads=2):
+            workers: int = 4,
+            threads: int = 2):
     """
     Converts a list of `.raw` files into zarr format and saves them in a given or default directory.
 
@@ -60,14 +61,14 @@ def convert(raw_files: Iterable[Path],
         The directory where converted files will be saved. Default is './echodata_zarr/'.
     sonar_model: str, optional
         The sonar model type to use for the conversion. Default is "ek80".
+    skip_existing: bool, optional
+        If a converted file already exists, skip it. Default is False.
     use_swap: bool, optional
         Indicates whether swapping is enabled during conversion. Default is True.
-
-    Raises:
-        None directly by this function.
-
-    Returns:
-        None
+    workers: int, optional
+        How many worker processes to use. Default is 4.
+    threads: int, optional
+        How many threads per worker to use. Default is 2.
     """
 
     client = Client(n_workers=workers, threads_per_worker=threads)
@@ -78,10 +79,15 @@ def convert(raw_files: Iterable[Path],
     for raw_file in raw_files:
         # The directory where the converted data will be saved
         ed_dir = Path(Path(raw_file).parent / out_dir).expanduser().resolve()
-        # If it doesn't exist, make it
-        ed_dir.mkdir(parents=True, exist_ok=True)
         # Where to save the converted data
         ed_path = (ed_dir / f"{raw_file.stem}.zarr").resolve()
+        if skip_existing and ed_path.exists():
+            print(f"Skipping {ed_path} - already exists")
+            continue
+
+        # If the output directory doesn't exist, make it
+        ed_dir.mkdir(parents=True, exist_ok=True)
+
         open_and_save_future = client.submit(
             open_and_save,
             pure=False,
@@ -133,6 +139,11 @@ def parse_args():
         help="Sonar model for echopype.open_raw. (default: ek80)",
     )
     parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip existing converted files (default: False)",
+    )
+    parser.add_argument(
         "--no-swap",
         action="store_true",
         help="Disable use_swap flag when opening raw files (default: enabled)",
@@ -172,7 +183,10 @@ if __name__ == '__main__':
         raw_files=raw_files,
         out_dir=args.out_dir,
         sonar_model=args.sonar_model,
+        skip_existing=args.skip_existing,
         use_swap=not args.no_swap,
+        workers=args.workers,
+        threads=args.threads,
     )
     stop = time.time()
     print(f"Conversion completed in {stop - start:.2f} seconds")
