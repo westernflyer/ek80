@@ -10,7 +10,7 @@ This module calculates calibrated volume backscatter (Sv) and saves the results 
 calculation is distributed using Dask to improve efficiency. The module supports configurable
 calibration parameters such as encoding mode, waveform mode, and depth offset.
 
-Through experimentation, I have found a configuration with 4 workers, 2 threads per worker,
+Through experimentation, I have found a configuration with 4 workers, 1 thread per worker,
 works best on my 4-core, 8-thread NUC. Even so, expect to get fatal
 "asyncio.exceptions.CancelledError" exceptions after processing 60-80 files. Re-run, but use the
 option --skip-existing to avoid re-processing existing files.
@@ -35,6 +35,8 @@ usagestr = """%(prog)s -h|--help
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.simplefilter("ignore", category=UserWarning)
+# Suppress Zarr warnings about opening data with unknown metadata consolidation
+warnings.simplefilter("ignore", category=RuntimeWarning)
 
 # Suppress UnstableSpecificationWarning. If the class is not directly importable, use a message filter
 try:
@@ -51,8 +53,8 @@ def calc_all(zarr_dirs: Iterable[Path],
              depth_offset: float | int = 1,
              skip_existing: bool = True,
              waveform_mode: str = "CW",
-             workers=4,
-             threads=2):
+             workers: int = 4,
+             threads: int = 1):
     client = Client(n_workers=workers, threads_per_worker=threads)
     print("Dask Client Dashboard:", client.dashboard_link)
 
@@ -115,7 +117,6 @@ def calculate_sv(zarr_dir: Path,
     ds_Sv.to_zarr(save_path, mode="w", consolidated=False)
     print(f"Saved Sv to {save_path}", flush=True)
 
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Calculate and save Sv from converted .zarr data",
@@ -170,8 +171,8 @@ def parse_args():
         "--threads",
         dest="threads",
         type=int,
-        default=2,
-        help="Number of threads per worker (default: 2)",
+        default=1,
+        help="Number of threads per worker (default: 1)",
     )
 
     return parser.parse_args()

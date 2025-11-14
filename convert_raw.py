@@ -113,7 +113,7 @@ def open_and_save(raw_file, sonar_model, use_swap, save_path):
         # Coerce increasing time
         echopype.qc.coerce_increasing_time(ed['Platform'])
 
-    ed.to_zarr(save_path, overwrite=True)
+    ed.to_zarr(save_path, overwrite=True, consolidated=False)
 
 
 def parse_args():
