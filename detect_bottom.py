@@ -4,8 +4,7 @@
 #    See the file LICENSE.txt for your rights.
 #
 """
-Calculate 1-D bottom line from Sv data, using echopype and Dask.
-
+Calculate bottom depth from Sv data, using echopype and Dask. Merge with latitude and longitude.
 Save the results to netCDF files.
 """
 import argparse
@@ -79,8 +78,11 @@ def calc_and_save_bottom_depth(sv_input: Path | str,
                                                 "offset_m": offset_m,
                                                 "bin_skip_from_surface": bin_skip_from_surface
                                             })
-        sea_floor.to_netcdf(save_path)
-        print(f"Saved bottom depth to {save_path}", flush=True)
+        # Merge into a single dataset containing, depth, latitude, and longitude,
+        # all indexed by ping_time.
+        ds = xr.merge([sea_floor, sv_ds.latitude, sv_ds.longitude])
+        ds.to_netcdf(save_path)
+        print(f"Saved bottom depth information to {save_path}", flush=True)
 
 
 def parse_args():
