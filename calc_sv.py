@@ -51,7 +51,7 @@ def calc_all(zarr_dirs: Iterable[Path],
              out_dir: Path | str = "../Sv_zarr/",
              encode_mode: str = "complex",
              depth_offset: float | int = 1,
-             skip_existing: bool = True,
+             skip_existing: bool = False,
              waveform_mode: str = "CW",
              workers: int = 4,
              threads: int = 1):
