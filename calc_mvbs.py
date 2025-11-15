@@ -119,16 +119,17 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
             leftover_ds_sv = concat_ds_sv.isel(ping_time=slice(cutoff_index, -1))
 
             # Compute MVBS on current subset
-            with ep.commongrid.compute_MVBS(complete_bins_sv, range_var="depth",
+            ds_mvbs = ep.commongrid.compute_MVBS(complete_bins_sv, range_var="depth",
                                             range_bin=range_bin,
-                                            ping_time_bin=ping_bin, ) as ds_mvbs:
-                print(f"Finished calculating MVBS for {sv_path}", flush=True)
+                                            ping_time_bin=ping_bin, )
+            print(f"Finished calculating MVBS for {sv_path}", flush=True)
 
-                # Remove the existing MVBS data if they exist
-                shutil.rmtree(mvbs_path, ignore_errors=True)
-                # Then save
-                ds_mvbs.to_zarr(mvbs_path, mode="w")
-                print(f"Saved MVBS to {mvbs_path}", flush=True)
+            # Remove the existing MVBS data if they exist
+            shutil.rmtree(mvbs_path, ignore_errors=True)
+            # Then save
+            ds_mvbs.to_zarr(mvbs_path, mode="w")
+            print(f"Saved MVBS to {mvbs_path}", flush=True)
+            ds_mvbs.close()
 
 
 def parse_args():
