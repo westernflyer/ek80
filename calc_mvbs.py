@@ -11,9 +11,6 @@ range bins, computes MVBS for each subsample, then concatenates the results.
 
 The processing iteratively handles incomplete bins across files by leveraging
 leftover data from prior iterations to ensure consistency in resampling.
-
-Raises:
-    RuntimeError: If no MVBS datasets are computed, indicating input files may be misconfigured.
 """
 import argparse
 import shutil
@@ -24,6 +21,7 @@ from pathlib import Path
 from typing import Iterable
 
 import echopype as ep
+import numpy as np
 import xarray as xr
 
 import utilities
@@ -38,12 +36,14 @@ warnings.simplefilter("ignore", category=FutureWarning)
 # Suppress Zarr warnings about opening data with unknown metadata consolidation
 warnings.simplefilter("ignore", category=RuntimeWarning)
 
+xr.set_options(use_new_combine_kwarg_defaults=True)
+
 
 def calc_and_save(sv_paths: Iterable[Path | str] = None,
                   out_dir: Path | str = "../MVBS_zarr/",
                   ping_bin: str = "5s",
                   range_bin: str = "1.0m",
-                  skip_existing: bool = False,):
+                  skip_existing: bool = False, ):
     """
     Calculate Mean Volume Backscattering Strength (MVBS) from Zarr hierarchies
     of Sv data, then save.
@@ -78,7 +78,7 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
         mvbs_path = Path(mvbs_out_dir / sv_path.name.replace('_Sv.zarr',
                                                              '_MVBS.zarr')).resolve()
         if skip_existing and mvbs_path.exists():
-            print(f"Skipping {mvbs_path} - already exists")
+            print(f"Skipping {mvbs_path} - already exists", flush=True)
             continue
 
         # If the output directory doesn't exist, make it
@@ -94,7 +94,11 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
 
             # Concat leftover Sv with current Sv
             if leftover_ds_sv:
-                concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv], dim="ping_time")
+                concat_ds_sv = xr.concat([leftover_ds_sv, ds_sv],
+                                         data_vars="minimal",
+                                         dim="ping_time",
+                                         fill_value=np.nan,
+                                         join="outer",)
             else:
                 concat_ds_sv = ds_sv
 
@@ -114,10 +118,10 @@ def calc_and_save(sv_paths: Iterable[Path | str] = None,
             # Keep remaining data for the next iteration
             leftover_ds_sv = concat_ds_sv.isel(ping_time=slice(cutoff_index, -1))
 
-            print(f"Starting calculating MVBS for {sv_path}", flush=True)
             # Compute MVBS on current subset
             with ep.commongrid.compute_MVBS(complete_bins_sv, range_var="depth",
-                                            range_bin=range_bin, ping_time_bin=ping_bin,) as ds_mvbs:
+                                            range_bin=range_bin,
+                                            ping_time_bin=ping_bin, ) as ds_mvbs:
                 print(f"Finished calculating MVBS for {sv_path}", flush=True)
 
                 # Remove the existing MVBS data if they exist

@@ -70,8 +70,8 @@ pip install -r requirements.txt
 
 ### Convert raw data and save in Zarr format
 
-Assuming that the raw data is stored in `~/Data/ek80`, this would convert it
-all and put it in `~/Data/ek80/echodata_zarr`:
+Assuming that the raw data is stored in `~/Data/ek80`, the following would 
+convert it all and put it in `~/Data/ek80/echodata_zarr`:
 
 ```shell
 python3 -m convert_raw ~/Data/ek80/*.raw
@@ -79,8 +79,8 @@ python3 -m convert_raw ~/Data/ek80/*.raw
 
 ### Calculate Sv
 
-This would calculate Sv from the results of the previous step and put it in
-`~/Data/ek80/Sv_zarr`:
+The following would calculate Sv from the results of the previous step and put 
+it in `~/Data/ek80/Sv_zarr`:
 
 ```shell
 python3 -m calc_sv ~/Data/ek80/Sv_zarr/*.zarr
@@ -88,8 +88,12 @@ python3 -m calc_sv ~/Data/ek80/Sv_zarr/*.zarr
 
 ### Calculate MVBS
 
-This would calculate MVBS from the results of the previous step and put it in
-`~/Data/ek80/MVBS_zarr`:
+The script `calc_mvbs.py` may emit warnings about performance issues or 
+supporting consolidated metadata in the future. For now, these warnings
+can be ignored.
+
+The following would calculate MVBS from the results of the previous step and put it in
+`~/Data/ek80/MVBS_zarr`.
 
 ```shell
 python3 -m calc_mvbs ~/Data/ek80/MVBS_zarr/*.zarr
