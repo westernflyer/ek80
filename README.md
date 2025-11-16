@@ -20,8 +20,7 @@ The repository consists of 4 scripts, which make up a data processing pipeline:
 ## Requirements
 
 Python 3.12 or 3.13. This requirement is due to echopype. As of 11/14/2025,
-Python 3.14 does not work because the virtual environment does not build
-properly.
+the virtual environment will not build properly under Python 3.14.
 
 Package `echopype` v0.11 or later. Version 0.10 does not include some functions
 that these scripts use.
@@ -34,8 +33,7 @@ Zarr version 3 or later is required because that is the only version that
 ### Directory structure
 
 Assuming that the raw echosounder data lies in `~/Data/ek80`, following the
-workflow outlined below will result in the following directory
-structure:
+workflow outlined below will result in the following directory structure:
 
 ```
 ~/Data/ek80/
@@ -60,21 +58,24 @@ structure:
 │   ├── ...
 ```
 
-### Set up a virtual environment
+### Install uv
+
+I have been using uv, which is a lot faster than pip.
 
 ```shell
-python -m venv ek80-venv
-source ek80-venv/bin/activate
-pip install -r requirements.txt
+sudo apt install pipx
+pipx install uv
 ```
 
 ### Convert raw data and save in Zarr format
 
 Assuming that the raw data is stored in `~/Data/ek80`, the following would 
-convert it all and put it in `~/Data/ek80/echodata_zarr`:
+convert it all and put the results in `~/Data/ek80/echodata_zarr`:
 
 ```shell
-python3 -m convert_raw ~/Data/ek80/*.raw
+# If it doesn't exist already, this will automatically create a virtual 
+# environment in .venv
+uv run convert_raw.py ~/Data/ek80/*.raw
 ```
 
 ### Calculate Sv
@@ -83,7 +84,7 @@ The following would calculate Sv from the results of the previous step and put
 it in `~/Data/ek80/Sv_zarr`:
 
 ```shell
-python3 -m calc_sv ~/Data/ek80/Sv_zarr/*.zarr
+uv run calc_sv.py ~/Data/ek80/Sv_zarr/*.zarr
 ```
 
 ### Calculate MVBS
@@ -96,7 +97,7 @@ The following would calculate MVBS from the results of the previous step and put
 `~/Data/ek80/MVBS_zarr`.
 
 ```shell
-python3 -m calc_mvbs ~/Data/ek80/MVBS_zarr/*.zarr
+uv run calc_mvbs.py ~/Data/ek80/MVBS_zarr/*.zarr
 ```
 
 ### Plot MVBS
@@ -104,7 +105,7 @@ python3 -m calc_mvbs ~/Data/ek80/MVBS_zarr/*.zarr
 Finally, select a day and plot it. For example, for 2025-Apr-30:
 
 ```shell
-python3 -m plot_mvbs  ~/Data/ek80/MVBS_zarr/250430WF*.zarr
+uv run plot_mvbs.py  ~/Data/ek80/MVBS_zarr/250430WF*.zarr
 ```
 
 # Copyright

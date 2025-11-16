@@ -1,0 +1,17 @@
+[project]
+name = "ek80"
+version = "1.0.0"
+description = "Scripts to process EK80 data using echopype"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "bokeh>=3.8.1",
+    "boto3>=1.40.74",
+    "dask>=2025.11.0",
+    "echopype>=0.11.0",
+    "geopandas>=1.1.1",
+    "matplotlib>=3.10.7",
+    "notebook>=7.4.7",
+    "xarray>=2025.10.1",
+    "zarr>=3.1.3",
+]
