@@ -4,17 +4,7 @@
 #    See the file LICENSE.txt for your rights.
 #
 """
-Plot MVBS echosounder data, using Sv data stored in Zarr format as the data source.
-
-This script reads Sv data in Zarr format, subsamples the data into ping and
-range bins, computes MVBS for each subsample, then concatenates the results. It
-then produces plots for the 38 kHz and 200 kHz echograms.
-
-The processing iteratively handles incomplete bins across files by leveraging
-leftover data from prior iterations to ensure consistency in resampling.
-
-Raises:
-    RuntimeError: If no MVBS datasets are computed, indicating input files may be misconfigured.
+Plot MVBS echosounder data, using MVBS data stored in Zarr format as the data source.
 """
 import argparse
 import sys
