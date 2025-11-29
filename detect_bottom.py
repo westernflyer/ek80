@@ -20,7 +20,7 @@ from dask.distributed import Client
 import utilities
 
 
-def calc_all(zarr_dirs: Iterable[Path | str],
+def calc_all(sv_paths: Iterable[Path | str],
              out_dir: Path | str = "../depth/",
              channel: str = "WBT Mini 278014-7 ES38-18|200-18C_ES",
              threshold: float = -40,
@@ -34,11 +34,11 @@ def calc_all(zarr_dirs: Iterable[Path | str],
 
     # Parse zarr directories, calculate seafloor depth, and save to disk
     open_and_save_futures = []
-    for zarr_dir in zarr_dirs:
+    for sv_path in sv_paths:
         # The directory where the depth data will be saved
-        depth_out_dir = Path(Path(zarr_dir).parent / out_dir).expanduser().resolve()
+        depth_out_dir = Path(Path(sv_path).parent / out_dir).expanduser().resolve()
         # Where to save the depth file
-        depth_path = Path(depth_out_dir / zarr_dir.name.replace('_Sv.zarr',
+        depth_path = Path(depth_out_dir / sv_path.name.replace('_Sv.zarr',
                                                                 '_depth.nc')).resolve()
         if skip_existing and depth_path.exists():
             print(f"Skipping {depth_path} - already exists")
@@ -50,7 +50,7 @@ def calc_all(zarr_dirs: Iterable[Path | str],
         open_and_save_future = client.submit(
             calc_and_save_bottom_depth,
             pure=False,
-            sv_input=zarr_dir,
+            sv_input=sv_path,
             save_path=depth_path,
             channel=channel,
             threshold=threshold,
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     start = time.time()
 
     calc_all(
-        zarr_dirs=zarr_dirs,
+        sv_paths=zarr_dirs,
         out_dir=args.out_dir,
         channel=args.channel,
         threshold=args.threshold,
