@@ -1,5 +1,8 @@
-ek80-venv
-.venv
-venv
 .idea
 .ipynb_checkpoints
+.venv
+ek80.egg-info
+ek80-venv
+ek_venv
+ekvenv
+venv
