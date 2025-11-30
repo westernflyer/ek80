@@ -15,6 +15,7 @@ The CSV file will contain:
 
 import argparse
 import csv
+import datetime
 import glob
 
 import numpy as np
@@ -77,11 +78,15 @@ def main() -> None:
                     or deps is None or np.isnan(deps[i]):
                     continue
 
+                # ping_times[i] is a numpy.datetime64. When converted to a string, it would show
+                # nanosecond precision. We don't need this. Convert to a Python datetime object,
+                # then use that. This will give second precision.
+                timestamp = datetime.datetime.fromisoformat(str(ping_times[i]))
                 writer.writerow({
-                    "ping_time": str(ping_times[i]),
-                    "latitude": lats[i],
-                    "longitude": lons[i],
-                    "depth": deps[i],
+                    "ping_time": timestamp.isoformat(),
+                    "latitude": f"{lats[i]:.3f}",
+                    "longitude": f"{lons[i]:.3f}",
+                    "depth": f"{deps[i]:.1f}",
                     "segment": segment,
                 })
             depths.close()
