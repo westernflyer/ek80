@@ -4,13 +4,19 @@
 #    See the file LICENSE.txt for your rights.
 #
 """
-Process a set of depth files, subsample by ping time, then combine into a single CSV file.
+Process a set of depth files, saving them as a CSV file.
+
+The files are grouped by segment identifier. For example, all depth files for segment 250501WF
+would be grouped together. For each segment, all its member depth files are
+loaded into memory together, then subsampled at a regular interval (by default, 60 seconds).
+Then the values for that segment are written to the CSV file.
+
 The CSV file will contain:
 - ping_time: The timestamp of the end of the subsample interval.
 - latitude: The latitude at the corresponding ping_time.
 - longitude: The longitude at the corresponding ping_time.
 - depth: The depth measurement at the corresponding ping_time.
-- segment: The segment identifier for the depth measurement.
+- segment: The segment identifier.
 """
 
 import argparse
@@ -74,8 +80,8 @@ def main() -> None:
 
             for i in range(len(ping_times)):
                 if lats is None or np.isnan(lats[i]) \
-                    or lons is None or np.isnan(lons[i]) \
-                    or deps is None or np.isnan(deps[i]):
+                        or lons is None or np.isnan(lons[i]) \
+                        or deps is None or np.isnan(deps[i]):
                     continue
 
                 # ping_times[i] is a numpy.datetime64. When converted to a string, it would show

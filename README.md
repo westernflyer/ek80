@@ -7,15 +7,21 @@ collected by Simrad echosounders, using the library
 [echopype](https://github.com/OSOceanAcoustics/echopype). All data is stored
 using the [Zarr format](https://zarr.dev/).
 
-The repository consists of 4 scripts, which make up a data processing pipeline:
+Four scripts make up the core of the data processing pipeline:
 
 - `convert_raw.py`: convert raw data (`.raw`) that was collected by the
-  echosounder into Zarr format, then save it to disk;
-- `calc_sv.py`: Using the converted files, calculate Sv (volume
-  backscattering strength) and save it to disk;
+  echosounder into Zarr (`.zarr`) format, then save it to disk in the `echodata_zarr`
+  subdirectory.
+- `calc_sv.py`: Using the converted `.zarr` files, calculate Sv (volume
+  backscattering strength) and save it to disk in the `Sv_zarr` subdirectory.
 - `calc_mvbs.py`: Using the Sv data, calculate Mean Volume Backscattering
-  Strength (MVBS) and save it to disk;
+  Strength (MVBS) and save it to disk in the `MVBS_zarr` subdirectory.
 - `plot_mvbs.py`: Read MVBS data, then plot the results.
+
+In addition, there are two other scripts for convenience: 
+- `detect_bottom.py`: Detect the bottom of the water column using the Sv data. Results are saved as a
+netData (`.nc`) file in the `depth` subdirectory.
+- `depth_csv.py`: Convert the depth netCDF data to a CSV file.
 
 ## Requirements
 
@@ -55,6 +61,11 @@ workflow outlined below will result in the following directory structure:
 │   ├── 250416WF-D20250416-T191232_MVBS.zarr
 │   ├── 250416WF-D20250416-T191355_MVBS.zarr
 │   ├── 250416WF-D20250416-T191516_MVBS.zarr
+│   ├── ...
+└── depth
+│   ├── 250416WF-D20250416-T191232_depth.nc
+│   ├── 250416WF-D20250416-T191355_depth.nc
+│   ├── 250416WF-D20250416-T191516_depth.nc
 │   ├── ...
 ```
 
