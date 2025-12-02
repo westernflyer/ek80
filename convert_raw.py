@@ -41,7 +41,7 @@ except ImportError:
 
 
 def convert(raw_files: Iterable[Path],
-            out_dir: Path | str = "./echodata_zarr/",
+            out_dir: Path | str = "../processed/echodata_zarr/",
             sonar_model: str = "ek80",
             skip_existing: bool = False,
             use_swap: bool = True,
@@ -58,7 +58,7 @@ def convert(raw_files: Iterable[Path],
     raw_files: Iterable[str]
         A collection of `.raw` files.
     out_dir: Path|str, optional
-        The directory where converted files will be saved. Default is './echodata_zarr/'.
+        The directory where converted files will be saved. Default is '../processed/echodata_zarr/'.
     sonar_model: str, optional
         The sonar model type to use for the conversion. Default is "ek80".
     skip_existing: bool, optional
@@ -128,8 +128,8 @@ def parse_args():
     )
     parser.add_argument(
         "--out-dir",
-        default="./echodata_zarr/",
-        help="Output directory. Default is './echodata_zarr/'",
+        default="../processed/echodata_zarr/",
+        help="Output directory. Default is '../processed/echodata_zarr/'",
     )
     parser.add_argument(
         "--sonar-model",

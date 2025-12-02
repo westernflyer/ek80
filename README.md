@@ -34,68 +34,69 @@ that these scripts use.
 Zarr version 3 or later is required because that is the only version that
 `echopype` v0.11 supports.
 
-## Workflow
-
-### Directory structure
+## Directory structure
 
 Assuming that the raw echosounder data lies in `~/Data/ek80`, following the
 workflow outlined below will result in the following directory structure:
 
 ```
 ~/Data/ek80/
-├── 250416WF-D20250416-T191232.raw
-├── 250416WF-D20250416-T191355.raw
-├── 250416WF-D20250416-T191516.raw
-├── ...
-├── echodata_zarr
-│   ├── 250416WF-D20250416-T191232.zarr
-│   ├── 250416WF-D20250416-T191355.zarr
-│   ├── 250416WF-D20250416-T191516.zarr
-│   ├── ...
-└── Sv_zarr
-│   ├── 250416WF-D20250416-T191232_Sv.zarr
-│   ├── 250416WF-D20250416-T191355_Sv.zarr
-│   ├── 250416WF-D20250416-T191516_Sv.zarr
-│   ├── ...
-└── MVBS_zarr
-│   ├── 250416WF-D20250416-T191232_MVBS.zarr
-│   ├── 250416WF-D20250416-T191355_MVBS.zarr
-│   ├── 250416WF-D20250416-T191516_MVBS.zarr
-│   ├── ...
-└── depth
-│   ├── 250416WF-D20250416-T191232_depth.nc
-│   ├── 250416WF-D20250416-T191355_depth.nc
-│   ├── 250416WF-D20250416-T191516_depth.nc
-│   ├── ...
+├── processed
+│   ├── depth
+│   │   ├── 250520WF-D20250520-T172150_depth.nc
+│   │   ├── 250520WF-D20250520-T172443_depth.nc
+│   │   ├── 250520WF-D20250520-T172739_depth.nc
+│   │   ├── 250520WF-D20250520-T173008_depth.nc
+│   │   ├──       ...
+│   ├── echodata_zarr
+│   │   ├── 250520WF-D20250520-T172150.zarr
+│   │   ├── 250520WF-D20250520-T172443.zarr
+│   │   ├── 250520WF-D20250520-T172739.zarr
+│   │   ├── 250520WF-D20250520-T173008.zarr
+│   │   ├──       ...
+│   ├── MVBS_zarr
+│       ├── 250520WF-D20250520-T172150_Sv.zarr
+│       ├── 250520WF-D20250520-T172443_Sv.zarr
+│       ├── 250520WF-D20250520-T172739_Sv.zarr
+│       ├── 250520WF-D20250520-T173008_Sv.zarr
+│       ├──       ...
+└── raw
+    ├── 250520WF-D20250520-T172150.raw
+    ├── 250520WF-D20250520-T172443.raw
+    ├── 250520WF-D20250520-T172739.raw
+    ├── 250520WF-D20250520-T173008.raw
+    ├──           ...
 ```
 
-### Install uv
+## Workflow
 
-I have been using uv, which is a lot faster than pip.
+### Create and activate the virtual environment
 
 ```shell
-sudo apt install pipx
-pipx install uv
+python3 -m venv ekvenv
+source ekvenv/bin/activate
+python3 -m pip install .
 ```
 
 ### Convert raw data and save in Zarr format
 
-Assuming that the raw data is stored in `~/Data/ek80`, the following would 
-convert it all and put the results in `~/Data/ek80/echodata_zarr`:
+Assuming that the raw data is stored in `~/Data/ek80/raw`, the following would 
+convert it all and put the results in directory 
+`~/Data/ek80/processed/echodata_zarr/`:
 
 ```shell
 # If it doesn't exist already, this will automatically create a virtual 
 # environment in .venv
-uv run convert_raw.py ~/Data/ek80/*.raw
+python3 convert_raw.py ~/Data/ek80/raw/*.raw
 ```
 
 ### Calculate Sv
 
 The following would calculate Sv from the results of the previous step and put 
-it in `~/Data/ek80/Sv_zarr`:
+it in directory `~/Data/ek80/processed/Sv_zarr/`:
 
 ```shell
-uv run calc_sv.py ~/Data/ek80/Sv_zarr/*.zarr
+python3 calc_sv.py ~/Data/ek80/processed/echodata_zarr/*.zarr
 ```
 
 ### Calculate MVBS
@@ -104,11 +105,11 @@ The script `calc_mvbs.py` may emit warnings about performance issues or
 supporting consolidated metadata in the future. For now, these warnings
 can be ignored.
 
-The following would calculate MVBS from the results of the previous step and put it in
-`~/Data/ek80/MVBS_zarr`.
+The following would calculate MVBS from the results of the previous step and 
+put it in directory `~/Data/ek80/processed/MVBS_zarr/`.
 
 ```shell
-uv run calc_mvbs.py ~/Data/ek80/MVBS_zarr/*.zarr
+python3 calc_mvbs.py ~/Data/ek80/processed/Sv_zarr/*.zarr
 ```
 
 ### Plot MVBS
@@ -116,7 +117,7 @@ uv run calc_mvbs.py ~/Data/ek80/MVBS_zarr/*.zarr
 Finally, select a day and plot it. For example, for 2025-Apr-30:
 
 ```shell
-uv run plot_mvbs.py  ~/Data/ek80/MVBS_zarr/250430WF*.zarr
+python3 plot_mvbs.py  ~/Data/ek80/processed/MVBS_zarr/250430WF*.zarr
 ```
 
 # Copyright
