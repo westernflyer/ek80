@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import os
 import sys
@@ -10,14 +12,18 @@ from botocore.exceptions import ClientError, NoCredentialsError
 
 from utilities import find_files
 
+DEFAULT_S3_PREFIX = "data/Western_Flyer/baja2025/Echosounder_EK80Portable/"
+
 
 class S3Uploader:
     """
     A class to upload files to S3 bucket with duplicate checking.
     """
 
-    def __init__(self, bucket_name: str, aws_access_key_id: str = None,
-                 aws_secret_access_key: str = None, region_name: str = None):
+    def __init__(self, bucket_name: str,
+                 aws_access_key_id: str = None,
+                 aws_secret_access_key: str = None,
+                 region_name: str = None):
         """
         Initialize S3 uploader.
 
@@ -96,15 +102,14 @@ class S3Uploader:
             print(f"✗ Error uploading {local_path.name}: {e}")
             return False
 
-
-    def upload_files(self, files: Iterable[Path | str], s3_prefix: str = '',
+    def upload_files(self, files: Iterable[Path | str], s3_path: str = '',
                      force_upload: bool = False) -> dict:
         """
         Upload a provided list of files to S3.
 
         Args:
             files: List of local file paths to upload
-            s3_prefix: Prefix to add to all S3 keys (e.g., 'data/')
+            s3_path: Prefix to add to all S3 keys
             force_upload: If True, always upload files, even if they already exist in S3
 
         Returns:
@@ -127,7 +132,7 @@ class S3Uploader:
 
         existing_files = set()
         if not force_upload:
-            existing_files = self.get_existing_files(prefix=s3_prefix)
+            existing_files = self.get_existing_files(prefix=s3_path)
 
         stats = {'uploaded': 0, 'skipped': 0, 'failed': 0}
 
@@ -136,7 +141,7 @@ class S3Uploader:
 
         for file_path in valid_files:
             # Use the file name under the provided prefix
-            s3_key = f"{s3_prefix}{file_path.name}".replace('\\', '/')
+            s3_key = os.path.join(s3_path, file_path.name)
 
             if not force_upload and s3_key in existing_files:
                 print(f"○ Skipped (exists): {file_path.name}")
@@ -181,18 +186,20 @@ class ProgressPercentage(object):
 # Example usage
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload specified files to an S3 bucket. "
-                                     "By default, skips files that already exist in the bucket.")
+                                                 "By default, skips files that already exist in the bucket.")
     parser.add_argument('files', nargs='+',
                         help='List of file paths to upload. Can use glob patterns.')
     parser.add_argument('--bucket', default='wff-archive',
                         help='S3 bucket name (default: wff-archive)')
-    parser.add_argument('--prefix', default='data/raw/Western_Flyer/baja2025/ek80/',
+    parser.add_argument('--prefix', default=DEFAULT_S3_PREFIX,
                         help='S3 key prefix to prepend to uploaded files '
-                             '(default: data/raw/Western_Flyer/baja2025/ek80/)')
+                             f'(default: {DEFAULT_S3_PREFIX}')
+    parser.add_argument('--suffix', default='raw',
+                        help='S3 directory under prefix (default: "raw")')
     parser.add_argument('--region', default='us-west-2',
                         help='AWS region for the S3 client (default: us-west-2)')
     parser.add_argument('--force-upload', action='store_true',
-                        help='Force an upload, even if the file already exists in S3',)
+                        help='Force an upload, even if the file already exists in S3', )
 
     args = parser.parse_args()
 
@@ -202,7 +209,7 @@ if __name__ == "__main__":
 
     results = uploader.upload_files(
         files=files,
-        s3_prefix=args.prefix,
+        s3_path=args.prefix + args.suffix,
         force_upload=args.force_upload,
     )
 
