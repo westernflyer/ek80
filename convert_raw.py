@@ -1,14 +1,16 @@
 #
-#    Copyright (c) 2025 Tom Keffer <tkeffer@gmail.com>
+#    Copyright (c) 2025-present Tom Keffer <tkeffer@gmail.com>
 #
 #    See the file LICENSE.txt for your rights.
 #
 """
-A module to convert raw echosounder files into Zarr format using echopype and Dask.
+A module to convert raw echosounder files into Zarr or netCDF format using echopype and Dask.
 
 Through experimentation, I have found a configuration with 4 workers, 2 threads per worker,
 works well on my 4-core, 8-thread NUC.
 """
+from __future__ import annotations
+
 import argparse
 import sys
 import time
@@ -23,8 +25,9 @@ from dask.distributed import Client
 from utilities import find_files
 
 usagestr = """%(prog)s -h|--help
-       %(prog)s [--out-dir=OUT_DIR] [--sonar-model={ek60|ek80}] [--no-swap] \\
-                  [--workers=WORKERS] [--threads=THREADS]\\
+       %(prog)s [--format={zarr|nc}] [--out-dir=OUT_DIR] [--sonar-model={ek60|ek80}] \\
+                  [--skip-existing] [--no-swap] \\
+                  [--workers=WORKERS] [--threads=THREADS] \\
                   inputs ...
 """
 
@@ -41,14 +44,16 @@ except ImportError:
 
 
 def convert(raw_files: Iterable[Path],
-            out_dir: Path | str = "../processed/echodata_zarr/",
+            out_format: str = "zarr",
+            out_dir: Path | str | None = None,
             sonar_model: str = "ek80",
             skip_existing: bool = False,
             use_swap: bool = True,
             workers: int = 4,
             threads: int = 2):
     """
-    Converts a list of `.raw` files into zarr format and saves them in a given or default directory.
+    Converts a list of `.raw` files into zarr or netCDF format, then save them in a
+    given or default directory.
 
     The function uses Dask to manage parallel processing. It creates the output
     directory if it does not exist. The files are then converted and saved to
@@ -57,8 +62,11 @@ def convert(raw_files: Iterable[Path],
     Parameters:
     raw_files: Iterable[str]
         A collection of `.raw` files.
+    out_format: str
+        The format to save the converted files as. Can be 'zarr' or 'nc'. Default is 'zarr'.
     out_dir: Path|str, optional
-        The directory where converted files will be saved. Default is '../processed/echodata_zarr/'.
+        The directory where converted files will be saved. For zarr, the default
+        is '../processed/echodata_zarr/'. For netCDF, the default is '../processed/echodata_nc/'.
     sonar_model: str, optional
         The sonar model type to use for the conversion. Default is "ek80".
     skip_existing: bool, optional
@@ -70,17 +78,24 @@ def convert(raw_files: Iterable[Path],
     threads: int, optional
         How many threads per worker to use. Default is 2.
     """
+    if out_format == "zarr":
+        default_dir = "../processed/echodata_zarr/"
+    elif out_format == "nc":
+        default_dir = "../processed/echodata_nc/"
+    else:
+        raise ValueError("Invalid format. Must be 'zarr' or 'netCDF'")
+    out_dir = out_dir or default_dir
 
     client = Client(n_workers=workers, threads_per_worker=threads)
     print("Dask Client Dashboard:", client.dashboard_link)
 
-    # Parse `.raw` file and save to zarr format
+    # Parse `.raw` file and save to zarr or netCDF format
     open_and_save_futures = []
     for raw_file in raw_files:
         # The directory where the converted data will be saved
         ed_dir = Path(Path(raw_file).parent / out_dir).expanduser().resolve()
         # Where to save the converted data
-        ed_path = (ed_dir / f"{raw_file.stem}.zarr").resolve()
+        ed_path = (ed_dir / f"{raw_file.stem}.{out_format}").resolve()
         if skip_existing and ed_path.exists():
             print(f"Skipping {ed_path} - already exists")
             continue
@@ -92,6 +107,7 @@ def convert(raw_files: Iterable[Path],
             open_and_save,
             pure=False,
             raw_file=raw_file,
+            out_format=out_format,
             sonar_model=sonar_model,
             use_swap=use_swap,
             save_path=ed_path,
@@ -100,8 +116,8 @@ def convert(raw_files: Iterable[Path],
     client.gather(open_and_save_futures)
 
 
-def open_and_save(raw_file, sonar_model, use_swap, save_path):
-    """Open and save an EchoData object to zarr."""
+def open_and_save(raw_file, out_format, sonar_model, use_swap, save_path):
+    """Open and save an EchoData object to zarr or netCDF format."""
     print(f"Converting {raw_file}; saving to {save_path}")
     ed = ep.open_raw(
         raw_file=raw_file,
@@ -113,12 +129,16 @@ def open_and_save(raw_file, sonar_model, use_swap, save_path):
         # Coerce increasing time
         echopype.qc.coerce_increasing_time(ed['Platform'])
 
-    ed.to_zarr(save_path, overwrite=True, consolidated=False)
+    if out_format == 'zarr':
+        ed.to_zarr(save_path, overwrite=True, consolidated=False)
+    else:
+        ed.to_netcdf(save_path, overwrite=True)
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Convert Simrad echosounder .raw files to Zarr format using echopype and Dask.",
+        description="Convert Simrad echosounder .raw files to Zarr or netCDF format using"
+                    " echopype and Dask.",
         usage=usagestr, )
 
     parser.add_argument(
@@ -127,9 +147,15 @@ def parse_args():
         help="Input .raw files. Can use glob patterns.",
     )
     parser.add_argument(
+        "--format",
+        default="zarr",
+        choices=["zarr", "nc"],
+        help="Output format. Default is 'zarr'.",
+    )
+    parser.add_argument(
         "--out-dir",
-        default="../processed/echodata_zarr/",
-        help="Output directory. Default is '../processed/echodata_zarr/'",
+        help="Output directory. Default is '../processed/echodata_[FORMAT]/' where [FORMAT] is "
+             "the format specified with --format.",
     )
     parser.add_argument(
         "--sonar-model",
@@ -181,6 +207,7 @@ if __name__ == '__main__':
     start = time.time()
     convert(
         raw_files=raw_files,
+        out_format=args.format,
         out_dir=args.out_dir,
         sonar_model=args.sonar_model,
         skip_existing=args.skip_existing,
