@@ -27,17 +27,6 @@ usagestr = """%(prog)s -h|--help
                   inputs ...
 """
 
-warnings.simplefilter("ignore", category=DeprecationWarning)
-# Ignore large graph dask UserWarnings
-warnings.simplefilter("ignore", category=UserWarning)
-# Ignore UnstableSpecificationWarning. If the class is not directly importable, use a message filter
-try:
-    from zarr.errors import UnstableSpecificationWarning
-
-    warnings.simplefilter("ignore", category=UnstableSpecificationWarning)
-except ImportError:
-    warnings.filterwarnings("ignore", message=".*UnstableSpecificationWarning.*")
-
 
 def convert(raw_files: Iterable[Path],
             out_format: str = "zarr",
