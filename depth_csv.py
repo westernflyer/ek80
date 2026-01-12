@@ -66,6 +66,7 @@ def main() -> None:
     segments = sorted(list(segment_set))
     print(f"Found {len(depth_paths)} depth files in {len(segments)} unique segments.")
 
+    total_time = 0
     # Open up both CSV files
     with open(depth_dir / 'depth_output.csv', 'w', newline='') as csvfile, \
             open(depth_dir / 'depth_label.csv', 'w', newline='') as labelfile:
@@ -100,6 +101,8 @@ def main() -> None:
             lons = depths_resampled["longitude"].to_numpy()
             deps = depths_resampled["bottom_depth"].to_numpy()
 
+            total_time += ping_times[-1] - ping_times[0]
+            print(total_time / np.timedelta64(1, 's'))
             count = 0
             sum_lat = 0.0
             sum_lon = 0.0
