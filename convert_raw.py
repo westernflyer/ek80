@@ -12,6 +12,7 @@ import argparse
 import sys
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Iterable
 
@@ -22,7 +23,7 @@ from utilities import find_files
 
 usagestr = """%(prog)s -h|--help
        %(prog)s [--format={zarr|nc}] [--out-dir=OUT_DIR] [--sonar-model={ek60|ek80}] \\
-                  [--skip-existing] [--no-swap] \\
+                  [--skip-existing] [--no-swap] [--max-workers=MAX_WORKERS] \\
                   inputs ...
 """
 
@@ -43,7 +44,8 @@ def convert(raw_files: Iterable[Path],
             out_dir: Path | str | None = None,
             sonar_model: str = "ek80",
             skip_existing: bool = False,
-            use_swap: bool = True):
+            use_swap: bool = True,
+            max_workers: int | None = None):
     """
     Converts a list of `.raw` files into zarr or netCDF format, then save them in a
     given or default directory.
@@ -64,6 +66,9 @@ def convert(raw_files: Iterable[Path],
         If a converted file already exists, skip it. Default is False.
     use_swap: bool, optional
         Indicates whether swapping is enabled during conversion. Default is True.
+    max_workers: int, optional
+        The maximum number of processes that can be used to execute the given calls.
+        If None, it will default to the number of processors on the machine.
     """
     if out_format == "zarr":
         default_dir = "../processed/echodata_zarr/"
@@ -74,25 +79,27 @@ def convert(raw_files: Iterable[Path],
     out_dir = out_dir or default_dir
 
     # Parse `.raw` file and save to zarr or netCDF format
-    for raw_file in raw_files:
-        # The directory where the converted data will be saved
-        ed_dir = Path(Path(raw_file).parent / out_dir).expanduser().resolve()
-        # Where to save the converted data
-        ed_path = (ed_dir / f"{raw_file.stem}.{out_format}").resolve()
-        if skip_existing and ed_path.exists():
-            print(f"Skipping {ed_path} - already exists")
-            continue
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        for raw_file in raw_files:
+            # The directory where the converted data will be saved
+            ed_dir = Path(Path(raw_file).parent / out_dir).expanduser().resolve()
+            # Where to save the converted data
+            ed_path = (ed_dir / f"{raw_file.stem}.{out_format}").resolve()
+            if skip_existing and ed_path.exists():
+                print(f"Skipping {ed_path} - already exists")
+                continue
 
-        # If the output directory doesn't exist, make it
-        ed_dir.mkdir(parents=True, exist_ok=True)
+            # If the output directory doesn't exist, make it
+            ed_dir.mkdir(parents=True, exist_ok=True)
 
-        open_and_save(
-            raw_file=raw_file,
-            out_format=out_format,
-            sonar_model=sonar_model,
-            use_swap=use_swap,
-            save_path=ed_path,
-        )
+            executor.submit(
+                open_and_save,
+                raw_file=raw_file,
+                out_format=out_format,
+                sonar_model=sonar_model,
+                use_swap=use_swap,
+                save_path=ed_path,
+            )
 
 
 def open_and_save(raw_file, out_format, sonar_model, use_swap, save_path):
@@ -153,6 +160,12 @@ def parse_args():
         action="store_true",
         help="Disable use_swap flag when opening raw files (default: enabled)",
     )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        help="The maximum number of processes that can be used. Default is the number of "
+             "processors on the machine.",
+    )
 
     return parser.parse_args()
 
@@ -176,6 +189,7 @@ if __name__ == '__main__':
         sonar_model=args.sonar_model,
         skip_existing=args.skip_existing,
         use_swap=not args.no_swap,
+        max_workers=args.max_workers,
     )
     stop = time.time()
     print(f"Conversion completed in {stop - start:.2f} seconds")
