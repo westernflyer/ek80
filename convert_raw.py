@@ -4,10 +4,7 @@
 #    See the file LICENSE.txt for your rights.
 #
 """
-A module to convert raw echosounder files into Zarr or netCDF format using echopype and Dask.
-
-Through experimentation, I have found a configuration with 4 workers, 2 threads per worker,
-works well on my 4-core, 8-thread NUC.
+A module to convert raw echosounder files into Zarr or netCDF format using echopype.
 """
 from __future__ import annotations
 
@@ -15,19 +12,18 @@ import argparse
 import sys
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Iterable
 
 import echopype as ep
 import echopype.qc
-from dask.distributed import Client
 
 from utilities import find_files
 
 usagestr = """%(prog)s -h|--help
        %(prog)s [--format={zarr|nc}] [--out-dir=OUT_DIR] [--sonar-model={ek60|ek80}] \\
-                  [--skip-existing] [--no-swap] \\
-                  [--workers=WORKERS] [--threads=THREADS] \\
+                  [--skip-existing] [--no-swap] [--max-workers=MAX_WORKERS] \\
                   inputs ...
 """
 
@@ -49,15 +45,12 @@ def convert(raw_files: Iterable[Path],
             sonar_model: str = "ek80",
             skip_existing: bool = False,
             use_swap: bool = True,
-            workers: int = 4,
-            threads: int = 2):
+            max_workers: int | None = None):
     """
     Converts a list of `.raw` files into zarr or netCDF format, then save them in a
     given or default directory.
 
-    The function uses Dask to manage parallel processing. It creates the output
-    directory if it does not exist. The files are then converted and saved to
-    the output directory
+    The files are then converted and saved to the output directory
 
     Parameters:
     raw_files: Iterable[str]
@@ -73,10 +66,9 @@ def convert(raw_files: Iterable[Path],
         If a converted file already exists, skip it. Default is False.
     use_swap: bool, optional
         Indicates whether swapping is enabled during conversion. Default is True.
-    workers: int, optional
-        How many worker processes to use. Default is 4.
-    threads: int, optional
-        How many threads per worker to use. Default is 2.
+    max_workers: int, optional
+        The maximum number of processes that can be used to execute the given calls.
+        If None, it will default to the number of processors on the machine.
     """
     if out_format == "zarr":
         default_dir = "../processed/echodata_zarr/"
@@ -86,34 +78,28 @@ def convert(raw_files: Iterable[Path],
         raise ValueError("Invalid format. Must be 'zarr' or 'netCDF'")
     out_dir = out_dir or default_dir
 
-    client = Client(n_workers=workers, threads_per_worker=threads)
-    print("Dask Client Dashboard:", client.dashboard_link)
-
     # Parse `.raw` file and save to zarr or netCDF format
-    open_and_save_futures = []
-    for raw_file in raw_files:
-        # The directory where the converted data will be saved
-        ed_dir = Path(Path(raw_file).parent / out_dir).expanduser().resolve()
-        # Where to save the converted data
-        ed_path = (ed_dir / f"{raw_file.stem}.{out_format}").resolve()
-        if skip_existing and ed_path.exists():
-            print(f"Skipping {ed_path} - already exists")
-            continue
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        for raw_file in raw_files:
+            # The directory where the converted data will be saved
+            ed_dir = Path(Path(raw_file).parent / out_dir).expanduser().resolve()
+            # Where to save the converted data
+            ed_path = (ed_dir / f"{raw_file.stem}.{out_format}").resolve()
+            if skip_existing and ed_path.exists():
+                print(f"Skipping {ed_path} - already exists")
+                continue
 
-        # If the output directory doesn't exist, make it
-        ed_dir.mkdir(parents=True, exist_ok=True)
+            # If the output directory doesn't exist, make it
+            ed_dir.mkdir(parents=True, exist_ok=True)
 
-        open_and_save_future = client.submit(
-            open_and_save,
-            pure=False,
-            raw_file=raw_file,
-            out_format=out_format,
-            sonar_model=sonar_model,
-            use_swap=use_swap,
-            save_path=ed_path,
-        )
-        open_and_save_futures.append(open_and_save_future)
-    client.gather(open_and_save_futures)
+            executor.submit(
+                open_and_save,
+                raw_file=raw_file,
+                out_format=out_format,
+                sonar_model=sonar_model,
+                use_swap=use_swap,
+                save_path=ed_path,
+            )
 
 
 def open_and_save(raw_file, out_format, sonar_model, use_swap, save_path):
@@ -138,7 +124,7 @@ def open_and_save(raw_file, out_format, sonar_model, use_swap, save_path):
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Convert Simrad echosounder .raw files to Zarr or netCDF format using"
-                    " echopype and Dask.",
+                    " echopype.",
         usage=usagestr, )
 
     parser.add_argument(
@@ -175,18 +161,10 @@ def parse_args():
         help="Disable use_swap flag when opening raw files (default: enabled)",
     )
     parser.add_argument(
-        "--workers",
-        dest="workers",
+        "--max-workers",
         type=int,
-        default=4,
-        help="Number of workers for Dask Client (default: 4)",
-    )
-    parser.add_argument(
-        "--threads",
-        dest="threads",
-        type=int,
-        default=2,
-        help="Number of threads per worker (default: 2)",
+        help="The maximum number of processes that can be used. Default is the number of "
+             "processors on the machine.",
     )
 
     return parser.parse_args()
@@ -202,7 +180,6 @@ if __name__ == '__main__':
         sys.exit(0)
 
     print(f"Found {len(raw_files)} raw files")
-    print(f"Using {args.workers} workers and {args.threads} threads per worker")
 
     start = time.time()
     convert(
@@ -212,8 +189,7 @@ if __name__ == '__main__':
         sonar_model=args.sonar_model,
         skip_existing=args.skip_existing,
         use_swap=not args.no_swap,
-        workers=args.workers,
-        threads=args.threads,
+        max_workers=args.max_workers,
     )
     stop = time.time()
     print(f"Conversion completed in {stop - start:.2f} seconds")
