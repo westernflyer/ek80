@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-import warnings
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Iterable
@@ -56,8 +55,8 @@ def convert(raw_files: Iterable[Path],
     use_swap: bool, optional
         Indicates whether swapping is enabled during conversion. Default is True.
     max_workers: int, optional
-        The maximum number of processes that can be used to execute the given calls.
-        If None, it will default to the number of processors on the machine.
+        The maximum number of processes to be used. If None, it will default to the number
+        of processors on the machine.
     """
     if out_format == "zarr":
         default_dir = "../processed/echodata_zarr/"
@@ -72,7 +71,7 @@ def convert(raw_files: Iterable[Path],
         for raw_file in raw_files:
             # The directory where the converted data will be saved
             ed_dir = Path(Path(raw_file).parent / out_dir).expanduser().resolve()
-            # Where to save the converted data
+            # Path to save the converted data
             ed_path = (ed_dir / f"{raw_file.stem}.{out_format}").resolve()
             if skip_existing and ed_path.exists():
                 print(f"Skipping {ed_path} - already exists")
@@ -81,6 +80,7 @@ def convert(raw_files: Iterable[Path],
             # If the output directory doesn't exist, make it
             ed_dir.mkdir(parents=True, exist_ok=True)
 
+            # Submit the conversion job to the process pool
             executor.submit(
                 open_and_save,
                 raw_file=raw_file,
@@ -92,7 +92,7 @@ def convert(raw_files: Iterable[Path],
 
 
 def open_and_save(raw_file, out_format, sonar_model, use_swap, save_path):
-    """Open and save an EchoData object to zarr or netCDF format."""
+    """Open, convert, then save an EchoData object to zarr or netCDF format."""
     print(f"Converting {raw_file}; saving to {save_path}")
     ed = ep.open_raw(
         raw_file=raw_file,
@@ -137,7 +137,7 @@ def parse_args():
         default="ek80",
         type=str.lower,
         choices=["ek60", "ek80"],
-        help="Sonar model for echopype.open_raw. (default: ek80)",
+        help="Sonar model. (default: ek80)",
     )
     parser.add_argument(
         "--skip-existing",
